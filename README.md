@@ -42,4 +42,6 @@ Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder werden im N
 - Three.js
 - [EZ-Tree](https://github.com/dgreenheck/ez-tree), MIT License, Daniel Greenheck
 
-Es werden keine externen 3D-Assets geladen.
+Vegetations-, Stein- und Bodenassets stammen aus der offiziellen EZ-Tree-Demo und werden lokal
+ausgeliefert. Herkunft und Lizenzen sind unter [`public/assets/ATTRIBUTION.md`](public/assets/ATTRIBUTION.md)
+dokumentiert.
