@@ -5,14 +5,12 @@
 
 import {
   Color,
-  DoubleSide,
   DynamicDrawUsage,
   BufferGeometry,
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
   MeshPhongMaterial,
-  MeshStandardMaterial,
   Quaternion,
   Vector3,
 } from 'three';
@@ -21,7 +19,7 @@ import type { InstancedModelAsset } from '../assets/landscape-assets';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
 import type { HeightField } from '../terrain/height-field';
 import type { WindUniforms } from '../wind/wind-field';
-import { WIND_NOISE_GLSL } from '../wind/shader-chunks';
+import { createGrassMaterial, prepareGrassGeometry } from './grass-material';
 
 const GRASS_DARK = new Color('#b1c08d');
 const GRASS_LIGHT = new Color('#ded39a');
@@ -57,7 +55,7 @@ export class GrassSystem {
     wind: WindUniforms,
     asset: InstancedModelAsset,
   ) {
-    const geometry = asset.geometry.clone();
+    const geometry = prepareGrassGeometry(asset.geometry);
     this.rotation = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
     this.phase = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
     this.strength = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
@@ -143,7 +141,7 @@ export class GrassSystem {
     const distanceRatio = distance / VEGETATION.grassRadius;
     const distanceKeep = distanceRatio < 0.62 ? 1 : Math.max(0.08, 1 - (distanceRatio - 0.62) / 0.38);
     const moisture = this.heightField.getMoisture(x, z, height);
-    const ecology = 0.12 + this.heightField.getGroundCover(x, z, moisture) * 0.88;
+    const ecology = 0.22 + this.heightField.getGroundCover(x, z, moisture) * 0.78;
     return unitRandom(hashCoordinates(hash, 17, 19)) < ecology * distanceKeep ? height : null;
   }
 
@@ -171,54 +169,3 @@ export class GrassSystem {
     if (this.visibleBladeCount > 0) this.mesh.computeBoundingSphere();
   }
 }
-
-function createGrassMaterial(source: MeshStandardMaterial, wind: WindUniforms): MeshPhongMaterial {
-  const material = new MeshPhongMaterial({
-    map: source.map,
-    color: '#dce7b8',
-    emissive: '#42673b',
-    emissiveIntensity: 0.15,
-    alphaTest: 0.45,
-    shininess: 1,
-    side: DoubleSide,
-    vertexColors: true,
-  });
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = wind.time;
-    shader.uniforms.uGlobalWindDirection = wind.direction;
-    shader.uniforms.uGlobalWindAmplitude = wind.amplitude;
-    shader.uniforms.uGlobalGust = wind.gust;
-    shader.uniforms.uGlobalWindScale = wind.spatialScale;
-    shader.vertexShader = `${grassDeclarations}\n${WIND_NOISE_GLSL}\n${shader.vertexShader}`;
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', grassBendShader);
-  };
-  material.customProgramCacheKey = () => 'endless-wilds-grass-v1';
-  return material;
-}
-
-const grassDeclarations = /* glsl */ `
-attribute float aRotation;
-attribute float aWindPhase;
-attribute float aWindStrength;
-uniform float uTime;
-uniform vec2 uGlobalWindDirection;
-uniform float uGlobalWindAmplitude;
-uniform float uGlobalGust;
-uniform float uGlobalWindScale;
-`;
-
-const grassBendShader = /* glsl */ `
-vec3 transformed = vec3(position);
-float cosine = cos(aRotation);
-float sine = sin(aRotation);
-transformed.xz = mat2(cosine, -sine, sine, cosine) * transformed.xz;
-vec4 bladeRoot = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-float heightFactor = uv.y * uv.y;
-float spatialPhase = windPhaseAt(bladeRoot.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
-float localGust = windGustAt(bladeRoot.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
-float wave = 0.62 * sin(uTime * 0.72 + aWindPhase + spatialPhase * 6.2831)
-  + 0.25 * sin(uTime * 1.43 + aWindPhase * 1.8)
-  + 0.13 * sin(uTime * 2.91 + spatialPhase * 3.7);
-transformed.xz += uGlobalWindDirection * wave * heightFactor * aWindStrength
-  * uGlobalWindAmplitude * uGlobalGust * localGust * 1.35;
-`;
