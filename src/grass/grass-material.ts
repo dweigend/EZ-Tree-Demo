@@ -5,6 +5,7 @@
 
 import { BufferAttribute, BufferGeometry, DoubleSide, MathUtils, MeshPhongMaterial, MeshStandardMaterial } from 'three';
 import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
+import { VEGETATION } from '../config';
 import type { WindUniforms } from '../wind/wind-field';
 import { WIND_NOISE_GLSL } from '../wind/shader-chunks';
 
@@ -37,6 +38,7 @@ export function createGrassMaterial(source: MeshStandardMaterial, wind: WindUnif
     vertexColors: true,
   });
   material.alphaToCoverage = true;
+  material.alphaHash = true;
   material.dithering = true;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = wind.time;
@@ -44,10 +46,17 @@ export function createGrassMaterial(source: MeshStandardMaterial, wind: WindUnif
     shader.uniforms.uGlobalWindAmplitude = wind.amplitude;
     shader.uniforms.uGlobalGust = wind.gust;
     shader.uniforms.uGlobalWindScale = wind.spatialScale;
+    shader.uniforms.uGrassFadeStart = { value: VEGETATION.grassRadius * 0.78 };
+    shader.uniforms.uGrassFadeEnd = { value: VEGETATION.grassRadius };
     shader.vertexShader = `${grassDeclarations}\n${WIND_NOISE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', grassBendShader);
+    shader.fragmentShader = `varying float vGrassOpacity;\n${shader.fragmentShader}`;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <alphahash_fragment>',
+      'diffuseColor.a *= vGrassOpacity;\n#include <alphahash_fragment>',
+    );
   };
-  material.customProgramCacheKey = () => 'endless-wilds-grass-v3';
+  material.customProgramCacheKey = () => 'endless-wilds-grass-v4';
   return material;
 }
 
@@ -61,6 +70,9 @@ uniform vec2 uGlobalWindDirection;
 uniform float uGlobalWindAmplitude;
 uniform float uGlobalGust;
 uniform float uGlobalWindScale;
+uniform float uGrassFadeStart;
+uniform float uGrassFadeEnd;
+varying float vGrassOpacity;
 `;
 
 const grassBendShader = /* glsl */ `
@@ -69,6 +81,7 @@ float cosine = cos(aRotation);
 float sine = sin(aRotation);
 transformed.xz = mat2(cosine, -sine, sine, cosine) * transformed.xz;
 vec4 bladeRoot = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+vGrassOpacity = 1.0 - smoothstep(uGrassFadeStart, uGrassFadeEnd, distance(bladeRoot.xyz, cameraPosition));
 float spatialPhase = windPhaseAt(bladeRoot.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
 float localGust = windGustAt(bladeRoot.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
 float wave = 0.62 * sin(uTime * 0.72 + aWindPhase + spatialPhase * 6.2831)

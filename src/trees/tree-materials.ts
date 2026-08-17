@@ -4,16 +4,21 @@
  */
 
 import { MeshPhongMaterial, Vector3 } from 'three';
+import { VEGETATION } from '../config';
 import type { WindUniforms } from '../wind/wind-field';
 import { WIND_NOISE_GLSL } from '../wind/shader-chunks';
 
 const INSTANCE_UNIFORMS = /* glsl */ `
 attribute float aWindPhase;
 attribute float aWindStrength;
+attribute float aLodFade;
 uniform vec2 uGlobalWindDirection;
 uniform float uGlobalWindAmplitude;
 uniform float uGlobalGust;
 uniform float uGlobalWindScale;
+uniform float uTreeFadeStart;
+uniform float uTreeFadeEnd;
+varying float vTreeOpacity;
 `;
 
 export function createBranchMaterial(source: MeshPhongMaterial, wind: WindUniforms): MeshPhongMaterial {
@@ -21,13 +26,15 @@ export function createBranchMaterial(source: MeshPhongMaterial, wind: WindUnifor
   material.emissive.set('#211a14');
   material.emissiveIntensity = 0.04;
   material.shininess = 2;
+  material.alphaHash = true;
   material.vertexColors = true;
   material.onBeforeCompile = (shader) => {
     bindSharedUniforms(shader.uniforms, wind);
     shader.vertexShader = `${INSTANCE_UNIFORMS}\nuniform float uTime;\n${WIND_NOISE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', branchProjectionShader);
+    addTreeFade(shader);
   };
-  material.customProgramCacheKey = () => 'endless-wilds-tree-branch-v1';
+  material.customProgramCacheKey = () => 'endless-wilds-tree-branch-v2';
   return material;
 }
 
@@ -37,6 +44,7 @@ export function createLeafMaterial(source: MeshPhongMaterial, wind: WindUniforms
   material.emissiveIntensity = 0.07;
   material.shininess = 1;
   material.alphaToCoverage = true;
+  material.alphaHash = true;
   material.dithering = true;
   const compileEzTreeWind = source.onBeforeCompile.bind(source);
   material.vertexColors = true;
@@ -45,8 +53,9 @@ export function createLeafMaterial(source: MeshPhongMaterial, wind: WindUniforms
     bindSharedUniforms(shader.uniforms, wind);
     shader.vertexShader = `${INSTANCE_UNIFORMS}\n${WIND_NOISE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = replaceEzTreeProjection(shader.vertexShader, leafProjectionShader);
+    addTreeFade(shader);
   };
-  material.customProgramCacheKey = () => 'endless-wilds-tree-leaf-v1';
+  material.customProgramCacheKey = () => 'endless-wilds-tree-leaf-v2';
   return material;
 }
 
@@ -58,6 +67,16 @@ function bindSharedUniforms(uniforms: Record<string, { value: unknown }>, wind: 
   uniforms.uGlobalWindScale = wind.spatialScale;
   uniforms.uWindScale = wind.spatialScale;
   uniforms.uWindStrength = { value: new Vector3() };
+  uniforms.uTreeFadeStart = { value: VEGETATION.farDistance - 120 };
+  uniforms.uTreeFadeEnd = { value: VEGETATION.farDistance };
+}
+
+function addTreeFade(shader: { fragmentShader: string }): void {
+  shader.fragmentShader = `varying float vTreeOpacity;\n${shader.fragmentShader}`;
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <alphahash_fragment>',
+    'diffuseColor.a *= vTreeOpacity;\n#include <alphahash_fragment>',
+  );
 }
 
 function replaceEzTreeProjection(shader: string, replacement: string): string {
@@ -72,6 +91,8 @@ function replaceEzTreeProjection(shader: string, replacement: string): string {
 const branchProjectionShader = /* glsl */ `
 vec4 instancePosition = instanceMatrix * vec4(transformed, 1.0);
 vec4 treeWorldPosition = modelMatrix * instancePosition;
+float treeDistance = distance(treeWorldPosition.xyz, cameraPosition);
+vTreeOpacity = aLodFade * (1.0 - smoothstep(uTreeFadeStart, uTreeFadeEnd, treeDistance));
 float heightFactor = smoothstep(0.04, 1.0, position.y);
 float spatialPhase = windPhaseAt(treeWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
 float localGust = windGustAt(treeWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
@@ -88,6 +109,8 @@ gl_Position = projectionMatrix * mvPosition;
 const leafProjectionShader = /* glsl */ `
 vec4 instancePosition = instanceMatrix * vec4(transformed, 1.0);
 vec4 treeWorldPosition = modelMatrix * instancePosition;
+float treeDistance = distance(treeWorldPosition.xyz, cameraPosition);
+vTreeOpacity = aLodFade * (1.0 - smoothstep(uTreeFadeStart, uTreeFadeEnd, treeDistance));
 float heightFactor = smoothstep(0.02, 0.98, position.y);
 float spatialPhase = windPhaseAt(treeWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
 float localGust = windGustAt(treeWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);

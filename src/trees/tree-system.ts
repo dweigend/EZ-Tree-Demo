@@ -30,7 +30,13 @@ interface TreeBatch {
   readonly leaves: InstancedMesh;
   readonly phase: InstancedBufferAttribute;
   readonly strength: InstancedBufferAttribute;
+  readonly fade: InstancedBufferAttribute;
   count: number;
+}
+
+interface LodBlend {
+  readonly index: number;
+  readonly opacity: number;
 }
 
 const LODS: readonly TreeLod[] = ['near', 'middle', 'far'];
@@ -42,6 +48,8 @@ const LEAF_COLORS: Readonly<Record<TreeSpecies, readonly [Color, Color]>> = {
 };
 const BARK_DARK = new Color('#d2c7b9');
 const BARK_LIGHT = new Color('#f6e8d2');
+const NEAR_BLEND_WIDTH = 18;
+const MIDDLE_BLEND_WIDTH = 36;
 
 export class TreeSystem {
   public readonly group = new Object3D();
@@ -113,17 +121,21 @@ export class TreeSystem {
 
   private addPlacement(placement: TreePlacement, cameraPosition: Vector3): void {
     const distance = Math.hypot(placement.x - cameraPosition.x, placement.z - cameraPosition.z);
-    const lodIndex = this.getLodIndex(distance);
-    if (lodIndex < 0) return;
     const variant = this.variants[placement.variant];
-    const batch = this.batches[placement.variant]?.[lodIndex];
-    if (!variant || !batch || batch.count >= VEGETATION.treeBatchCapacity) return;
-    this.writeInstance(batch, variant, placement);
-    batch.count += 1;
+    const blends = this.getLodBlends(distance);
+    if (!variant || blends.length === 0) return;
+    for (const blend of blends) this.addLodInstance(variant, placement, blend);
     this.visibleTreeCount += 1;
   }
 
-  private writeInstance(batch: TreeBatch, variant: TreeVariant, placement: TreePlacement): void {
+  private addLodInstance(variant: TreeVariant, placement: TreePlacement, blend: LodBlend): void {
+    const batch = this.batches[placement.variant]?.[blend.index];
+    if (!batch || batch.count >= VEGETATION.treeBatchCapacity) return;
+    this.writeInstance(batch, variant, placement, blend.opacity);
+    batch.count += 1;
+  }
+
+  private writeInstance(batch: TreeBatch, variant: TreeVariant, placement: TreePlacement, opacity: number): void {
     const index = batch.count;
     const worldHeight = variant.height * placement.scale;
     this.position.set(placement.x, placement.y - 0.12, placement.z);
@@ -134,6 +146,7 @@ export class TreeSystem {
     batch.leaves.setMatrixAt(index, this.transform);
     batch.phase.setX(index, placement.windPhase);
     batch.strength.setX(index, placement.windStrength);
+    batch.fade.setX(index, opacity);
     this.writeInstanceColors(batch, index, variant.species, placement.tint);
   }
 
@@ -145,11 +158,14 @@ export class TreeSystem {
     batch.branches.setColorAt(index, this.barkColor);
   }
 
-  private getLodIndex(distance: number): number {
-    if (distance < VEGETATION.nearDistance) return 0;
-    if (distance < VEGETATION.middleDistance) return 1;
-    if (distance < VEGETATION.farDistance) return 2;
-    return -1;
+  private getLodBlends(distance: number): LodBlend[] {
+    if (distance >= VEGETATION.farDistance) return [];
+    const nearBlend = blendAt(distance, VEGETATION.nearDistance, NEAR_BLEND_WIDTH);
+    if (nearBlend) return [{ index: 0, opacity: 1 - nearBlend }, { index: 1, opacity: nearBlend }];
+    if (distance < VEGETATION.nearDistance) return [{ index: 0, opacity: 1 }];
+    const middleBlend = blendAt(distance, VEGETATION.middleDistance, MIDDLE_BLEND_WIDTH);
+    if (middleBlend) return [{ index: 1, opacity: 1 - middleBlend }, { index: 2, opacity: middleBlend }];
+    return [{ index: distance < VEGETATION.middleDistance ? 1 : 2, opacity: 1 }];
   }
 
   private createBatch(variant: TreeVariant, lod: TreeLod): TreeBatch {
@@ -158,16 +174,20 @@ export class TreeSystem {
     const leaves = this.createInstancedMesh(geometry.leaves, variant.leafMaterial);
     const phase = new InstancedBufferAttribute(new Float32Array(VEGETATION.treeBatchCapacity), 1);
     const strength = new InstancedBufferAttribute(new Float32Array(VEGETATION.treeBatchCapacity), 1);
+    const fade = new InstancedBufferAttribute(new Float32Array(VEGETATION.treeBatchCapacity), 1);
     phase.setUsage(DynamicDrawUsage);
     strength.setUsage(DynamicDrawUsage);
+    fade.setUsage(DynamicDrawUsage);
     branches.geometry.setAttribute('aWindPhase', phase);
     branches.geometry.setAttribute('aWindStrength', strength);
     leaves.geometry.setAttribute('aWindPhase', phase);
     leaves.geometry.setAttribute('aWindStrength', strength);
+    branches.geometry.setAttribute('aLodFade', fade);
+    leaves.geometry.setAttribute('aLodFade', fade);
     branches.castShadow = lod === 'near';
     leaves.castShadow = lod === 'near';
     this.group.add(branches, leaves);
-    return { branches, leaves, phase, strength, count: 0 };
+    return { branches, leaves, phase, strength, fade, count: 0 };
   }
 
   private createInstancedMesh(geometry: TreeGeometryPair['branches'], material: TreeVariant['branchMaterial']): InstancedMesh {
@@ -197,8 +217,16 @@ export class TreeSystem {
     batch.leaves.instanceColor && (batch.leaves.instanceColor.needsUpdate = true);
     batch.phase.needsUpdate = true;
     batch.strength.needsUpdate = true;
+    batch.fade.needsUpdate = true;
     if (batch.count === 0) return;
     batch.branches.computeBoundingSphere();
     batch.leaves.computeBoundingSphere();
   }
+}
+
+function blendAt(distance: number, threshold: number, width: number): number | null {
+  const start = threshold - width;
+  const end = threshold + width;
+  if (distance <= start || distance >= end) return null;
+  return (distance - start) / (end - start);
 }

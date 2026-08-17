@@ -4,6 +4,7 @@
  */
 
 import { DoubleSide, MeshStandardMaterial } from 'three';
+import { VEGETATION } from '../config';
 import type { WindUniforms } from '../wind/wind-field';
 import { WIND_NOISE_GLSL } from '../wind/shader-chunks';
 
@@ -20,16 +21,24 @@ export function createFlowerMaterial(source: MeshStandardMaterial, wind: WindUni
     metalness: 0,
     vertexColors: true,
   });
+  material.alphaHash = true;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = wind.time;
     shader.uniforms.uGlobalWindDirection = wind.direction;
     shader.uniforms.uGlobalWindAmplitude = wind.amplitude;
     shader.uniforms.uGlobalGust = wind.gust;
     shader.uniforms.uGlobalWindScale = wind.spatialScale;
+    shader.uniforms.uFlowerFadeStart = { value: VEGETATION.flowerDistance - 55 };
+    shader.uniforms.uFlowerFadeEnd = { value: VEGETATION.flowerDistance };
     shader.vertexShader = `${flowerDeclarations}\n${WIND_NOISE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', flowerWindShader);
+    shader.fragmentShader = `varying float vFlowerOpacity;\n${shader.fragmentShader}`;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <alphahash_fragment>',
+      'diffuseColor.a *= vFlowerOpacity;\n#include <alphahash_fragment>',
+    );
   };
-  material.customProgramCacheKey = () => 'endless-wilds-flower-v1';
+  material.customProgramCacheKey = () => 'endless-wilds-flower-v2';
   return material;
 }
 
@@ -49,11 +58,15 @@ uniform vec2 uGlobalWindDirection;
 uniform float uGlobalWindAmplitude;
 uniform float uGlobalGust;
 uniform float uGlobalWindScale;
+uniform float uFlowerFadeStart;
+uniform float uFlowerFadeEnd;
+varying float vFlowerOpacity;
 `;
 
 const flowerWindShader = /* glsl */ `
 vec4 instancePosition = instanceMatrix * vec4(transformed, 1.0);
 vec4 flowerWorldPosition = modelMatrix * instancePosition;
+vFlowerOpacity = 1.0 - smoothstep(uFlowerFadeStart, uFlowerFadeEnd, distance(flowerWorldPosition.xyz, cameraPosition));
 float heightFactor = smoothstep(0.08, 1.35, position.y);
 float spatialPhase = windPhaseAt(flowerWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
 float localGust = windGustAt(flowerWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
