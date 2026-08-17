@@ -35,7 +35,7 @@ export function createFlowerMaterial(source: MeshStandardMaterial, wind: WindUni
     shader.fragmentShader = `varying float vFlowerOpacity;\n${shader.fragmentShader}`;
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <alphahash_fragment>',
-      'diffuseColor.a *= vFlowerOpacity;\n#include <alphahash_fragment>',
+      'diffuseColor.a = vFlowerOpacity;\n#include <alphahash_fragment>',
     );
   };
   material.customProgramCacheKey = () => 'endless-wilds-flower-v2';

@@ -53,7 +53,7 @@ export function createGrassMaterial(source: MeshStandardMaterial, wind: WindUnif
     shader.fragmentShader = `varying float vGrassOpacity;\n${shader.fragmentShader}`;
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <alphahash_fragment>',
-      'diffuseColor.a *= vGrassOpacity;\n#include <alphahash_fragment>',
+      'diffuseColor.a = vGrassOpacity;\n#include <alphahash_fragment>',
     );
   };
   material.customProgramCacheKey = () => 'endless-wilds-grass-v4';

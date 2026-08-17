@@ -75,7 +75,7 @@ function addTreeFade(shader: { fragmentShader: string }): void {
   shader.fragmentShader = `varying float vTreeOpacity;\n${shader.fragmentShader}`;
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <alphahash_fragment>',
-    'diffuseColor.a *= vTreeOpacity;\n#include <alphahash_fragment>',
+    'diffuseColor.a = vTreeOpacity;\n#include <alphahash_fragment>',
   );
 }
 
