@@ -49,14 +49,15 @@ export class WorldRuntime {
   private peakFrameTime = 0;
   private lastDiagnosticsUpdate = Number.NEGATIVE_INFINITY;
 
-  public constructor(private readonly mount: HTMLElement, private readonly diagnosticsElement: HTMLElement) {
+  public constructor(mount: HTMLElement, private readonly diagnosticsElement: HTMLElement) {
     this.scene.fog = new Fog('#a9bec0', RENDERING.fogNear, RENDERING.fogFar);
     this.positionCamera();
-    this.mount.append(this.renderer.domElement);
+    mount.append(this.renderer.domElement);
     this.controls = new FlightControls(this.camera, this.renderer.domElement);
     this.grass = new GrassSystem(this.heightField, hashString(`${WORLD_SEED}:grass`), this.wind.uniforms);
-    const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`));
-    this.trees = new TreeSystem(createTreeVariants(this.wind.uniforms), forest);
+    const variants = createTreeVariants(this.wind.uniforms);
+    const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`), variants.length);
+    this.trees = new TreeSystem(variants, forest);
     this.scene.add(this.terrain.group, this.trees.group, this.grass.mesh);
     this.diagnostics = createInitialDiagnostics();
     window.__LANDSCAPE_DIAGNOSTICS__ = this.diagnostics;
@@ -86,9 +87,10 @@ export class WorldRuntime {
   }
 
   private readonly renderFrame = (): void => {
-    const deltaSeconds = Math.min(this.clock.getDelta(), 0.05);
+    const rawDeltaSeconds = this.clock.getDelta();
+    const simulationDeltaSeconds = Math.min(rawDeltaSeconds, 0.05);
     const elapsedSeconds = this.clock.elapsedTime;
-    this.controls.update(deltaSeconds);
+    this.controls.update(simulationDeltaSeconds);
     this.trees.prepareStreaming(this.camera.position);
     const terrainChanged = this.terrain.update(this.camera.position);
     if (terrainChanged) this.trees.rebuild(this.camera.position);
@@ -97,7 +99,7 @@ export class WorldRuntime {
     this.wind.update(elapsedSeconds);
     this.environment.update(this.camera);
     this.renderer.render(this.scene, this.camera);
-    this.updateDiagnostics(deltaSeconds, elapsedSeconds);
+    this.updateDiagnostics(rawDeltaSeconds, elapsedSeconds);
   };
 
   private positionCamera(): void {

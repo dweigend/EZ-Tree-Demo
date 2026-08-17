@@ -13,7 +13,6 @@ export const TERRAIN = {
 } as const;
 
 export const VEGETATION = {
-  treeVariantCount: 10,
   treeBatchCapacity: 640,
   treeSpacing: 14.5,
   nearDistance: 175,

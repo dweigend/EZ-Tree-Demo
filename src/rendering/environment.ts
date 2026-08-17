@@ -20,7 +20,7 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import { RENDERING } from '../config';
 
 export class Environment {
-  public readonly group = new Group();
+  private readonly group = new Group();
   private readonly sky = new Sky();
   private readonly sun = new DirectionalLight('#fff1d2', 2.7);
   private readonly target = new Object3D();
@@ -39,7 +39,9 @@ export class Environment {
 
   public update(camera: PerspectiveCamera): void {
     this.sky.position.copy(camera.position);
-    this.target.position.copy(camera.position).add(new Vector3(0, -80, -20));
+    this.target.position.copy(camera.position);
+    this.target.position.y -= 80;
+    this.target.position.z -= 20;
     this.sun.position.copy(camera.position).addScaledVector(this.sunDirection, 420);
     this.target.updateMatrixWorld();
   }

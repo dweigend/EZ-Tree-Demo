@@ -7,11 +7,7 @@ import { MathUtils } from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { hashString } from '../core/random';
 
-export interface SurfaceSample {
-  readonly height: number;
-  readonly moisture: number;
-  readonly slope: number;
-}
+const SURFACE_SAMPLE_DISTANCE = 3;
 
 export class HeightField {
   private readonly noise = new ImprovedNoise();
@@ -25,22 +21,24 @@ export class HeightField {
   }
 
   public getHeight(x: number, z: number): number {
-    const warped = this.getWarpedCoordinates(x, z);
-    const continental = this.fbm(warped.x * 0.00062, warped.z * 0.00062, 4);
+    const warpX = this.fbm(x * 0.00072 + 31, z * 0.00072 - 19, 3) * 215;
+    const warpZ = this.fbm(x * 0.00072 - 47, z * 0.00072 + 23, 3) * 215;
+    const warpedX = x + warpX;
+    const warpedZ = z + warpZ;
+    const continental = this.fbm(warpedX * 0.00062, warpedZ * 0.00062, 4);
     const mountainMask = MathUtils.smoothstep(continental, -0.18, 0.48);
-    const ridges = this.ridgedFbm(warped.x * 0.00145, warped.z * 0.00145, 4);
+    const ridges = this.ridgedFbm(warpedX * 0.00145, warpedZ * 0.00145, 4);
     const plains = MathUtils.smoothstep(this.fbm(x * 0.00038, z * 0.00038, 3), 0.18, 0.64);
-    const hills = this.fbm(warped.x * 0.0034, warped.z * 0.0034, 4) * 31;
-    const valley = this.getValleyDepth(warped.x, warped.z);
+    const hills = this.fbm(warpedX * 0.0034, warpedZ * 0.0034, 4) * 31;
+    const valley = this.getValleyDepth(warpedX, warpedZ);
     return continental * 24 + mountainMask * ridges ** 2.25 * 178 + hills * (1 - plains * 0.72) - valley;
   }
 
-  public getSurface(x: number, z: number): SurfaceSample {
-    const step = 3;
-    const height = this.getHeight(x, z);
-    const dx = (this.getHeight(x + step, z) - this.getHeight(x - step, z)) / (step * 2);
-    const dz = (this.getHeight(x, z + step) - this.getHeight(x, z - step)) / (step * 2);
-    return { height, slope: Math.hypot(dx, dz), moisture: this.getMoisture(x, z, height) };
+  public getSlope(x: number, z: number): number {
+    const step = SURFACE_SAMPLE_DISTANCE;
+    const dx = this.getHeight(x + step, z) - this.getHeight(x - step, z);
+    const dz = this.getHeight(x, z + step) - this.getHeight(x, z - step);
+    return Math.hypot(dx, dz) / (step * 2);
   }
 
   public getMoisture(x: number, z: number, height = this.getHeight(x, z)): number {
@@ -51,12 +49,6 @@ export class HeightField {
 
   public getNoise(x: number, z: number, scale: number, octaves = 3): number {
     return this.fbm(x * scale, z * scale, octaves);
-  }
-
-  private getWarpedCoordinates(x: number, z: number): { readonly x: number; readonly z: number } {
-    const warpX = this.fbm(x * 0.00072 + 31, z * 0.00072 - 19, 3) * 215;
-    const warpZ = this.fbm(x * 0.00072 - 47, z * 0.00072 + 23, 3) * 215;
-    return { x: x + warpX, z: z + warpZ };
   }
 
   private getValleyDepth(x: number, z: number): number {

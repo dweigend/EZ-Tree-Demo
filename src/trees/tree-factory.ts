@@ -3,7 +3,7 @@
  * No tree generation occurs after construction; runtime trees are GPU instances only.
  */
 
-import { Tree } from '@dgreenheck/ez-tree';
+import { Tree, TreePreset } from '@dgreenheck/ez-tree';
 import { BufferAttribute, BufferGeometry, Matrix4, MeshPhongMaterial } from 'three';
 import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import type { WindUniforms } from '../wind/wind-field';
@@ -40,9 +40,10 @@ export function createTreeVariants(wind: WindUniforms): TreeVariant[] {
   return VARIANT_SOURCES.map(([preset, seed, height]) => createVariant(preset, seed, height, wind));
 }
 
-function createVariant(preset: string, seed: number, height: number, wind: WindUniforms): TreeVariant {
-  const tree = new Tree();
-  tree.loadPreset(preset);
+function createVariant(preset: keyof typeof TreePreset, seed: number, height: number, wind: WindUniforms): TreeVariant {
+  // EZ-Tree accepts preset JSON at runtime, but its constructor type incorrectly requires TreeOptions.copy().
+  const options = structuredClone(TreePreset[preset]) as Tree['options'];
+  const tree = new Tree(options);
   tree.options.seed = seed;
   reduceTreeComplexity(tree);
   tree.generate();
@@ -118,15 +119,14 @@ function inflateLeafCards(source: BufferGeometry, factor: number): BufferGeometr
 }
 
 function simplify(source: BufferGeometry, retainedFraction: number): BufferGeometry {
-  const geometry = source.clone();
-  const vertexCount = geometry.getAttribute('position').count;
+  const vertexCount = source.getAttribute('position').count;
   const removeCount = Math.max(0, Math.floor(vertexCount * (1 - retainedFraction)));
-  if (removeCount === 0) return geometry;
+  if (removeCount === 0) return source.clone();
   try {
     source.computeVertexNormals();
-    return new SimplifyModifier().modify(source.clone(), removeCount);
+    return new SimplifyModifier().modify(source, removeCount);
   } catch {
-    return geometry;
+    return source.clone();
   }
 }
 

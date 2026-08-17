@@ -3,7 +3,7 @@
  * It resamples a continuous HeightField when reassigned and shares its material with all chunks.
  */
 
-import { BufferAttribute, BufferGeometry, Color, Mesh, MeshStandardMaterial, PlaneGeometry } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DynamicDrawUsage, Mesh, MeshStandardMaterial, PlaneGeometry } from 'three';
 import { TERRAIN } from '../config';
 import type { HeightField } from './height-field';
 
@@ -14,26 +14,25 @@ const DRY_GRASS = new Color('#8d8b58');
 
 export class TerrainChunk {
   public readonly mesh: Mesh<BufferGeometry, MeshStandardMaterial>;
-  public coordinateX = Number.NaN;
-  public coordinateZ = Number.NaN;
   private readonly positions: BufferAttribute;
   private readonly normals: BufferAttribute;
   private readonly colors: BufferAttribute;
+  private readonly color = new Color();
 
   public constructor(private readonly heightField: HeightField, material: MeshStandardMaterial) {
     const geometry = new PlaneGeometry(TERRAIN.chunkSize, TERRAIN.chunkSize, TERRAIN.segments, TERRAIN.segments);
     geometry.rotateX(-Math.PI / 2);
     this.positions = geometry.getAttribute('position') as BufferAttribute;
     this.normals = geometry.getAttribute('normal') as BufferAttribute;
-    this.colors = new BufferAttribute(new Float32Array(this.positions.count * 3), 3);
+    this.positions.setUsage(DynamicDrawUsage);
+    this.normals.setUsage(DynamicDrawUsage);
+    this.colors = new BufferAttribute(new Float32Array(this.positions.count * 3), 3).setUsage(DynamicDrawUsage);
     geometry.setAttribute('color', this.colors);
     this.mesh = new Mesh(geometry, material);
     this.mesh.receiveShadow = true;
   }
 
   public assign(coordinateX: number, coordinateZ: number): void {
-    this.coordinateX = coordinateX;
-    this.coordinateZ = coordinateZ;
     this.mesh.position.set(coordinateX * TERRAIN.chunkSize, 0, coordinateZ * TERRAIN.chunkSize);
     this.resampleGeometry();
   }
@@ -49,7 +48,6 @@ export class TerrainChunk {
     this.positions.needsUpdate = true;
     this.normals.needsUpdate = true;
     this.colors.needsUpdate = true;
-    this.mesh.geometry.computeBoundingBox();
     this.mesh.geometry.computeBoundingSphere();
   }
 
@@ -69,8 +67,8 @@ export class TerrainChunk {
   private writeColor(index: number, height: number, slope: number, moisture: number): void {
     const elevation = Math.min(Math.max((height - 30) / 165, 0), 1);
     const rockMix = Math.min(Math.max((slope - 0.42) / 0.7, 0), 1);
-    const base = DRY_GRASS.clone().lerp(LOWLAND, moisture * 0.78).lerp(HIGHLAND, elevation * 0.62);
-    base.lerp(ROCK, rockMix * (0.4 + elevation * 0.6));
-    this.colors.setXYZ(index, base.r, base.g, base.b);
+    this.color.copy(DRY_GRASS).lerp(LOWLAND, moisture * 0.78).lerp(HIGHLAND, elevation * 0.62);
+    this.color.lerp(ROCK, rockMix * (0.4 + elevation * 0.6));
+    this.colors.setXYZ(index, this.color.r, this.color.g, this.color.b);
   }
 }

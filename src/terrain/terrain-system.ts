@@ -22,11 +22,11 @@ export class TerrainSystem {
   private centerX = Number.NaN;
   private centerZ = Number.NaN;
 
-  public constructor(private readonly heightField: HeightField) {
+  public constructor(heightField: HeightField) {
     const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 });
     const diameter = TERRAIN.chunkRadius * 2 + 1;
     for (let index = 0; index < diameter * diameter; index += 1) {
-      const chunk = new TerrainChunk(this.heightField, material);
+      const chunk = new TerrainChunk(heightField, material);
       this.chunks.push(chunk);
       this.group.add(chunk.mesh);
     }

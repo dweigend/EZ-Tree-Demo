@@ -31,8 +31,6 @@ if (!world || !diagnostics) {
   throw new Error('Landscape shell could not be created.');
 }
 
-await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
 try {
   const runtime = new WorldRuntime(world, diagnostics);
   runtime.start();

@@ -23,7 +23,11 @@ export interface TreePlacement {
 export class ForestDistribution {
   private readonly cache = new Map<string, TreePlacement[]>();
 
-  public constructor(private readonly heightField: HeightField, private readonly seed: number) {}
+  public constructor(
+    private readonly heightField: HeightField,
+    private readonly seed: number,
+    private readonly variantCount: number,
+  ) {}
 
   public getChunkPlacements(chunkX: number, chunkZ: number): TreePlacement[] {
     const key = `${chunkX}:${chunkZ}`;
@@ -56,9 +60,11 @@ export class ForestDistribution {
     const cellHash = hashCoordinates(this.seed, chunkX * cells + cellX, chunkZ * cells + cellZ);
     const x = this.getWorldCoordinate(chunkX, cellX, cellHash, 0x25f3);
     const z = this.getWorldCoordinate(chunkZ, cellZ, cellHash, 0x74a9);
-    const surface = this.heightField.getSurface(x, z);
-    if (!this.acceptsSite(x, z, surface.height, surface.slope, surface.moisture, cellHash)) return null;
-    return this.buildPlacement(x, z, surface.height, cellHash);
+    const height = this.heightField.getHeight(x, z);
+    const slope = this.heightField.getSlope(x, z);
+    const moisture = this.heightField.getMoisture(x, z, height);
+    if (!this.acceptsSite(x, z, height, slope, moisture, cellHash)) return null;
+    return this.buildPlacement(x, z, height, cellHash);
   }
 
   private getWorldCoordinate(chunk: number, cell: number, hash: number, salt: number): number {
@@ -85,7 +91,7 @@ export class ForestDistribution {
       z,
       rotation: unitRandom(hashCoordinates(hash, 3, 5)) * Math.PI * 2,
       scale: 0.76 + unitRandom(hashCoordinates(hash, 17, 19)) * 0.46,
-      variant: hashCoordinates(hash, 23, 31) % VEGETATION.treeVariantCount,
+      variant: hashCoordinates(hash, 23, 31) % this.variantCount,
       windPhase: unitRandom(hashCoordinates(hash, 37, 41)) * Math.PI * 2,
       windStrength: 0.72 + unitRandom(hashCoordinates(hash, 43, 47)) * 0.48,
       tint: unitRandom(hashCoordinates(hash, 53, 59)),

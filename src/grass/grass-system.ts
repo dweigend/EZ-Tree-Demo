@@ -59,6 +59,9 @@ export class GrassSystem {
     this.rotation = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
     this.phase = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
     this.strength = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
+    this.rotation.setUsage(DynamicDrawUsage);
+    this.phase.setUsage(DynamicDrawUsage);
+    this.strength.setUsage(DynamicDrawUsage);
     geometry.setAttribute('aRotation', this.rotation);
     geometry.setAttribute('aWindPhase', this.phase);
     geometry.setAttribute('aWindStrength', this.strength);
@@ -131,21 +134,13 @@ export class GrassSystem {
   private getAcceptedHeight(x: number, z: number, distance: number, hash: number): number | null {
     if (distance > VEGETATION.grassRadius) return null;
     const height = this.heightField.getHeight(x, z);
-    const slope = this.getSlope(x, z);
-    if (slope > 0.82 || height > 205 || height < -38) return null;
+    if (height > 205 || height < -38 || this.heightField.getSlope(x, z) > 0.82) return null;
     const meadow = this.heightField.getNoise(x - 210, z + 80, 0.0052, 2) * 0.5 + 0.5;
     const distanceRatio = distance / VEGETATION.grassRadius;
     const distanceKeep = distanceRatio < 0.62 ? 1 : Math.max(0.08, 1 - (distanceRatio - 0.62) / 0.38);
     const moisture = this.heightField.getMoisture(x, z, height);
     const ecology = 0.32 + meadow * 0.34 + moisture * 0.34;
     return unitRandom(hashCoordinates(hash, 17, 19)) < ecology * distanceKeep ? height : null;
-  }
-
-  private getSlope(x: number, z: number): number {
-    const step = 3;
-    const dx = this.heightField.getHeight(x + step, z) - this.heightField.getHeight(x - step, z);
-    const dz = this.heightField.getHeight(x, z + step) - this.heightField.getHeight(x, z - step);
-    return Math.hypot(dx, dz) / (step * 2);
   }
 
   private writeBlade(index: number, x: number, z: number, y: number, hash: number): void {

@@ -78,10 +78,6 @@ export class TreeSystem {
       }
     }
     for (const variant of this.variants) {
-      for (const geometry of Object.values(variant.lods)) {
-        geometry.branches.dispose();
-        geometry.leaves.dispose();
-      }
       variant.branchMaterial.dispose();
       variant.leafMaterial.dispose();
     }
@@ -154,6 +150,8 @@ export class TreeSystem {
     const leaves = this.createInstancedMesh(geometry.leaves, variant.leafMaterial);
     const phase = new InstancedBufferAttribute(new Float32Array(VEGETATION.treeBatchCapacity), 1);
     const strength = new InstancedBufferAttribute(new Float32Array(VEGETATION.treeBatchCapacity), 1);
+    phase.setUsage(DynamicDrawUsage);
+    strength.setUsage(DynamicDrawUsage);
     branches.geometry.setAttribute('aWindPhase', phase);
     branches.geometry.setAttribute('aWindStrength', strength);
     leaves.geometry.setAttribute('aWindPhase', phase);
@@ -164,10 +162,9 @@ export class TreeSystem {
   }
 
   private createInstancedMesh(geometry: TreeGeometryPair['branches'], material: TreeVariant['branchMaterial']): InstancedMesh {
-    const mesh = new InstancedMesh(geometry.clone(), material, VEGETATION.treeBatchCapacity);
+    const mesh = new InstancedMesh(geometry, material, VEGETATION.treeBatchCapacity);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.count = 0;
-    mesh.frustumCulled = true;
     return mesh;
   }
 

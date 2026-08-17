@@ -7,14 +7,11 @@ import { ACESFilmicToneMapping, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderer 
 import { RENDERING } from '../config';
 
 export function createRenderer(): WebGLRenderer {
-  const context = document.createElement('canvas').getContext('webgl2', {
+  const renderer = new WebGLRenderer({
     antialias: true,
     alpha: false,
     powerPreference: 'high-performance',
   });
-  if (!context) throw new Error('This prototype requires WebGL2.');
-
-  const renderer = new WebGLRenderer({ canvas: context.canvas, context, antialias: true });
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1;
