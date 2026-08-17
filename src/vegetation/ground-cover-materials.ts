@@ -55,11 +55,12 @@ const flowerWindShader = /* glsl */ `
 vec4 instancePosition = instanceMatrix * vec4(transformed, 1.0);
 vec4 flowerWorldPosition = modelMatrix * instancePosition;
 float heightFactor = smoothstep(0.08, 1.35, position.y);
-float spatialPhase = windNoise(flowerWorldPosition.xz / uGlobalWindScale - uTime * 0.012);
+float spatialPhase = windPhaseAt(flowerWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
+float localGust = windGustAt(flowerWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
 float wave = 0.7 * sin(uTime * 0.72 + aWindPhase + spatialPhase * 6.2831)
   + 0.3 * sin(uTime * 1.37 + aWindPhase * 1.6);
 instancePosition.xz += uGlobalWindDirection * wave * heightFactor * heightFactor
-  * aWindStrength * uGlobalWindAmplitude * uGlobalGust * 0.24;
+  * aWindStrength * uGlobalWindAmplitude * uGlobalGust * localGust * 0.24;
 vec4 mvPosition = modelViewMatrix * instancePosition;
 gl_Position = projectionMatrix * mvPosition;
 `;

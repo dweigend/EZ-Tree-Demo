@@ -212,13 +212,13 @@ vec3 transformed = vec3(position);
 float cosine = cos(aRotation);
 float sine = sin(aRotation);
 transformed.xz = mat2(cosine, -sine, sine, cosine) * transformed.xz;
-vec4 bladeRoot = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+vec4 bladeRoot = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
 float heightFactor = uv.y * uv.y;
-float spatialPhase = windNoise(bladeRoot.xz / uGlobalWindScale + uTime * 0.009);
-float gust = 0.58 + 0.42 * windNoise(bladeRoot.xz / (uGlobalWindScale * 2.3) - uTime * 0.015);
+float spatialPhase = windPhaseAt(bladeRoot.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
+float localGust = windGustAt(bladeRoot.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
 float wave = 0.62 * sin(uTime * 0.72 + aWindPhase + spatialPhase * 6.2831)
   + 0.25 * sin(uTime * 1.43 + aWindPhase * 1.8)
   + 0.13 * sin(uTime * 2.91 + spatialPhase * 3.7);
 transformed.xz += uGlobalWindDirection * wave * heightFactor * aWindStrength
-  * uGlobalWindAmplitude * uGlobalGust * gust * 1.35;
+  * uGlobalWindAmplitude * uGlobalGust * localGust * 1.35;
 `;

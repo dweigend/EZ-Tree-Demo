@@ -27,10 +27,10 @@ interface TreeBatch {
 
 const LODS: readonly TreeLod[] = ['near', 'middle', 'far'];
 const WHITE = new Color('#ffffff');
-const LEAF_DARK = new Color('#b8c99a');
-const LEAF_LIGHT = new Color('#e3ddb0');
-const BARK_DARK = new Color('#a89c88');
-const BARK_LIGHT = new Color('#d0c1a7');
+const LEAF_DARK = new Color('#d1deb7');
+const LEAF_LIGHT = new Color('#f2edcf');
+const BARK_DARK = new Color('#c8c0b4');
+const BARK_LIGHT = new Color('#eee3d5');
 
 export class TreeSystem {
   public readonly group = new Object3D();
@@ -157,6 +157,7 @@ export class TreeSystem {
     leaves.geometry.setAttribute('aWindPhase', phase);
     leaves.geometry.setAttribute('aWindStrength', strength);
     branches.castShadow = lod === 'near';
+    leaves.castShadow = lod === 'near';
     this.group.add(branches, leaves);
     return { branches, leaves, phase, strength, count: 0 };
   }

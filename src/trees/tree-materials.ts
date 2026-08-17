@@ -18,6 +18,7 @@ uniform float uGlobalWindScale;
 
 export function createBranchMaterial(source: MeshPhongMaterial, wind: WindUniforms): MeshPhongMaterial {
   const material = source.clone();
+  material.shininess = 2;
   material.vertexColors = true;
   material.onBeforeCompile = (shader) => {
     bindSharedUniforms(shader.uniforms, wind);
@@ -30,12 +31,15 @@ export function createBranchMaterial(source: MeshPhongMaterial, wind: WindUnifor
 
 export function createLeafMaterial(source: MeshPhongMaterial, wind: WindUniforms): MeshPhongMaterial {
   const material = source.clone();
+  material.emissive.set('#1f2e18');
+  material.emissiveIntensity = 0.1;
+  material.shininess = 1;
   const compileEzTreeWind = source.onBeforeCompile.bind(source);
   material.vertexColors = true;
   material.onBeforeCompile = (shader, renderer) => {
     compileEzTreeWind(shader, renderer);
     bindSharedUniforms(shader.uniforms, wind);
-    shader.vertexShader = `${INSTANCE_UNIFORMS}\n${shader.vertexShader}`;
+    shader.vertexShader = `${INSTANCE_UNIFORMS}\n${WIND_NOISE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = replaceEzTreeProjection(shader.vertexShader, leafProjectionShader);
   };
   material.customProgramCacheKey = () => 'endless-wilds-tree-leaf-v1';
@@ -63,13 +67,15 @@ function replaceEzTreeProjection(shader: string, replacement: string): string {
 
 const branchProjectionShader = /* glsl */ `
 vec4 instancePosition = instanceMatrix * vec4(transformed, 1.0);
+vec4 treeWorldPosition = modelMatrix * instancePosition;
 float heightFactor = smoothstep(0.04, 1.0, position.y);
-float spatialPhase = windNoise(instancePosition.xz / uGlobalWindScale + uTime * 0.008);
+float spatialPhase = windPhaseAt(treeWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
+float localGust = windGustAt(treeWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
 float wave = 0.62 * sin(uTime * 0.55 + aWindPhase + spatialPhase * 6.2831)
   + 0.25 * sin(uTime * 1.17 + aWindPhase * 1.7)
   + 0.13 * sin(uTime * 2.31 + spatialPhase * 3.1);
 vec2 sway = uGlobalWindDirection * wave * uGlobalWindAmplitude * uGlobalGust
-  * aWindStrength * heightFactor * heightFactor * 0.72;
+  * aWindStrength * heightFactor * heightFactor * localGust * 0.72;
 instancePosition.xz += sway;
 vec4 mvPosition = modelViewMatrix * instancePosition;
 gl_Position = projectionMatrix * mvPosition;
@@ -77,13 +83,15 @@ gl_Position = projectionMatrix * mvPosition;
 
 const leafProjectionShader = /* glsl */ `
 vec4 instancePosition = instanceMatrix * vec4(transformed, 1.0);
+vec4 treeWorldPosition = modelMatrix * instancePosition;
 float heightFactor = smoothstep(0.02, 0.98, position.y);
-float spatialPhase = simplex3(vec3(instancePosition.xz / uGlobalWindScale, uTime * 0.012));
+float spatialPhase = windPhaseAt(treeWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
+float localGust = windGustAt(treeWorldPosition.xz, uTime, uGlobalWindScale, uGlobalWindDirection);
 float wave = 0.52 * sin(uTime * 0.53 + aWindPhase + spatialPhase * 5.4)
   + 0.3 * sin(uTime * 1.09 + aWindPhase * 1.4)
   + 0.18 * sin(uTime * 2.47 + spatialPhase * 4.2);
 vec2 sway = uGlobalWindDirection * wave * uGlobalWindAmplitude * uGlobalGust
-  * aWindStrength * (0.35 + heightFactor * 0.65);
+  * aWindStrength * (0.35 + heightFactor * 0.65) * localGust;
 instancePosition.xz += sway;
 vec4 mvPosition = modelViewMatrix * instancePosition;
 gl_Position = projectionMatrix * mvPosition;

@@ -18,4 +18,12 @@ float windNoise(vec2 point) {
   float d = windHash(cell + vec2(1.0, 1.0));
   return mix(mix(a, b, eased.x), mix(c, d, eased.x), eased.y);
 }
+
+float windPhaseAt(vec2 worldPosition, float time, float scale, vec2 direction) {
+  return windNoise(worldPosition / scale - direction * time * 0.025);
+}
+
+float windGustAt(vec2 worldPosition, float time, float scale, vec2 direction) {
+  return 0.58 + 0.42 * windNoise(worldPosition / (scale * 2.3) - direction * time * 0.018);
+}
 `;
