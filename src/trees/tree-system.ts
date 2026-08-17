@@ -23,6 +23,7 @@ import {
 } from '../world/chunk-coordinates';
 import type { ForestDistribution, TreePlacement } from '../vegetation/forest-distribution';
 import type { TreeGeometryPair, TreeLod, TreeVariant } from './tree-factory';
+import type { TreeSpecies } from './tree-templates';
 
 interface TreeBatch {
   readonly branches: InstancedMesh;
@@ -33,11 +34,14 @@ interface TreeBatch {
 }
 
 const LODS: readonly TreeLod[] = ['near', 'middle', 'far'];
-const WHITE = new Color('#ffffff');
-const LEAF_DARK = new Color('#789950');
-const LEAF_LIGHT = new Color('#c5b866');
-const BARK_DARK = new Color('#c8c0b4');
-const BARK_LIGHT = new Color('#eee3d5');
+const LEAF_COLORS: Readonly<Record<TreeSpecies, readonly [Color, Color]>> = {
+  ash: [new Color('#c4d3ae'), new Color('#f1e8bd')],
+  aspen: [new Color('#c9dcaa'), new Color('#eff0b4')],
+  oak: [new Color('#bed09b'), new Color('#e1d39d')],
+  pine: [new Color('#b2c8a6'), new Color('#d8d6a2')],
+};
+const BARK_DARK = new Color('#d2c7b9');
+const BARK_LIGHT = new Color('#f6e8d2');
 
 export class TreeSystem {
   public readonly group = new Object3D();
@@ -127,12 +131,13 @@ export class TreeSystem {
     batch.leaves.setMatrixAt(index, this.transform);
     batch.phase.setX(index, placement.windPhase);
     batch.strength.setX(index, placement.windStrength);
-    this.writeInstanceColors(batch, index, placement.tint);
+    this.writeInstanceColors(batch, index, variant.species, placement.tint);
   }
 
-  private writeInstanceColors(batch: TreeBatch, index: number, tint: number): void {
-    this.leafColor.copy(LEAF_DARK).lerp(LEAF_LIGHT, 0.25 + tint * 0.52).lerp(WHITE, 0.06);
-    this.barkColor.copy(BARK_DARK).lerp(BARK_LIGHT, tint * 0.48).lerp(WHITE, 0.08);
+  private writeInstanceColors(batch: TreeBatch, index: number, species: TreeSpecies, tint: number): void {
+    const [leafDark, leafLight] = LEAF_COLORS[species];
+    this.leafColor.copy(leafDark).lerp(leafLight, 0.18 + tint * 0.64);
+    this.barkColor.copy(BARK_DARK).lerp(BARK_LIGHT, 0.22 + tint * 0.5);
     batch.leaves.setColorAt(index, this.leafColor);
     batch.branches.setColorAt(index, this.barkColor);
   }

@@ -18,9 +18,8 @@ uniform float uGlobalWindScale;
 
 export function createBranchMaterial(source: MeshPhongMaterial, wind: WindUniforms): MeshPhongMaterial {
   const material = source.clone();
-  material.color.set('#e1d4bd');
-  material.emissive.set('#3d3024');
-  material.emissiveIntensity = 0.12;
+  material.emissive.set('#211a14');
+  material.emissiveIntensity = 0.04;
   material.shininess = 2;
   material.vertexColors = true;
   material.onBeforeCompile = (shader) => {
@@ -34,10 +33,10 @@ export function createBranchMaterial(source: MeshPhongMaterial, wind: WindUnifor
 
 export function createLeafMaterial(source: MeshPhongMaterial, wind: WindUniforms): MeshPhongMaterial {
   const material = source.clone();
-  material.color.set('#d5e3b4');
-  material.emissive.set('#3b552c');
-  material.emissiveIntensity = 0.2;
+  material.emissive.set('#182314');
+  material.emissiveIntensity = 0.07;
   material.shininess = 1;
+  material.alphaToCoverage = true;
   material.dithering = true;
   const compileEzTreeWind = source.onBeforeCompile.bind(source);
   material.vertexColors = true;
