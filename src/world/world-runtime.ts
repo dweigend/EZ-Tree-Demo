@@ -16,6 +16,8 @@ import { TerrainSystem } from '../terrain/terrain-system';
 import { createTreeVariants } from '../trees/tree-factory';
 import { TreeSystem } from '../trees/tree-system';
 import { ForestDistribution } from '../vegetation/forest-distribution';
+import { GroundCoverDistribution } from '../vegetation/ground-cover-distribution';
+import { GroundCoverSystem } from '../vegetation/ground-cover-system';
 import { WindField } from '../wind/wind-field';
 
 export interface LandscapeDiagnostics {
@@ -26,6 +28,9 @@ export interface LandscapeDiagnostics {
   triangles: number;
   trees: number;
   grassBlades: number;
+  flowers: number;
+  rocks: number;
+  activeChunks: number;
   geometries: number;
   textures: number;
   position: readonly [number, number, number];
@@ -45,6 +50,7 @@ export class WorldRuntime {
   private readonly controls: FlightControls;
   private readonly grass: GrassSystem;
   private readonly trees: TreeSystem;
+  private readonly groundCover: GroundCoverSystem;
   private readonly diagnostics: LandscapeDiagnostics;
   private averageFrameTime = 16.7;
   private peakFrameTime = 0;
@@ -64,7 +70,9 @@ export class WorldRuntime {
     const variants = createTreeVariants(this.wind.uniforms);
     const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`), variants.length);
     this.trees = new TreeSystem(variants, forest);
-    this.scene.add(this.terrain.group, this.trees.group, this.grass.mesh);
+    const groundCoverDistribution = new GroundCoverDistribution(this.heightField, hashString(`${WORLD_SEED}:ground-cover`));
+    this.groundCover = new GroundCoverSystem(assets, groundCoverDistribution, this.wind.uniforms);
+    this.scene.add(this.terrain.group, this.trees.group, this.grass.mesh, this.groundCover.group);
     this.diagnostics = createInitialDiagnostics();
     window.__LANDSCAPE_DIAGNOSTICS__ = this.diagnostics;
     window.addEventListener('resize', this.resize);
@@ -74,6 +82,7 @@ export class WorldRuntime {
     this.terrain.update(this.camera.position);
     this.trees.rebuild(this.camera.position);
     this.grass.update(this.camera.position);
+    this.groundCover.rebuild(this.camera.position);
     this.environment.update(this.camera);
     this.clock.start();
     this.renderer.setAnimationLoop(this.renderFrame);
@@ -86,6 +95,7 @@ export class WorldRuntime {
     this.terrain.dispose();
     this.trees.dispose();
     this.grass.dispose();
+    this.groundCover.dispose();
     this.environment.dispose();
     disposeLandscapeAssets(this.assets);
     this.renderer.dispose();
@@ -100,7 +110,10 @@ export class WorldRuntime {
     this.controls.update(simulationDeltaSeconds);
     this.trees.prepareStreaming(this.camera.position);
     const terrainChanged = this.terrain.update(this.camera.position);
-    if (terrainChanged) this.trees.rebuild(this.camera.position);
+    if (terrainChanged) {
+      this.trees.rebuild(this.camera.position);
+      this.groundCover.rebuild(this.camera.position);
+    }
     this.terrain.processStreaming();
     this.grass.update(this.camera.position);
     this.wind.update(elapsedSeconds);
@@ -132,6 +145,9 @@ export class WorldRuntime {
       triangles: info.render.triangles,
       trees: this.trees.visibleTreeCount,
       grassBlades: this.grass.visibleBladeCount,
+      flowers: this.groundCover.visibleFlowerCount,
+      rocks: this.groundCover.visibleRockCount,
+      activeChunks: this.terrain.activeChunkCount,
       geometries: info.memory.geometries,
       textures: info.memory.textures,
       position: this.camera.position.toArray(),
@@ -158,6 +174,9 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
     triangles: 0,
     trees: 0,
     grassBlades: 0,
+    flowers: 0,
+    rocks: 0,
+    activeChunks: 0,
     geometries: 0,
     textures: 0,
     position: [0, 0, 0],
@@ -168,5 +187,5 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
 
 function formatDiagnostics(value: LandscapeDiagnostics): string {
   const triangles = Math.round(value.triangles / 1_000);
-  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.speed} m/s`;
+  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.flowers} flowers · ${value.rocks} rocks · ${value.speed} m/s`;
 }

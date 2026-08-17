@@ -22,6 +22,12 @@ export const VEGETATION = {
   grassSpacing: 2.75,
   grassCapacity: 34_000,
   grassRefreshDistance: 70,
+  flowerBatchCapacity: 160,
+  flowerSpacing: 16,
+  flowerDistance: 210,
+  rockBatchCapacity: 120,
+  rockSpacing: 40,
+  rockDistance: 520,
 } as const;
 
 export const RENDERING = {

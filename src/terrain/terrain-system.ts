@@ -12,6 +12,9 @@ import { createTerrainMaterial } from './terrain-material';
 
 export class TerrainSystem {
   public readonly group = new Group();
+  public get activeChunkCount(): number {
+    return this.activeChunks.size;
+  }
   private readonly chunks: TerrainChunk[] = [];
   private readonly activeChunks = new Map<string, TerrainChunk>();
   private readonly pendingAssignments: Array<{

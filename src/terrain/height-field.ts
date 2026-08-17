@@ -3,7 +3,7 @@
  * Domain-warped multi-scale Three.js noise creates macro landforms without owning any meshes.
  */
 
-import { MathUtils } from 'three';
+import { MathUtils, Vector3 } from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { hashString } from '../core/random';
 
@@ -39,6 +39,13 @@ export class HeightField {
     const dx = this.getHeight(x + step, z) - this.getHeight(x - step, z);
     const dz = this.getHeight(x, z + step) - this.getHeight(x, z - step);
     return Math.hypot(dx, dz) / (step * 2);
+  }
+
+  public getNormal(x: number, z: number, target: Vector3): Vector3 {
+    const step = SURFACE_SAMPLE_DISTANCE;
+    const dx = this.getHeight(x + step, z) - this.getHeight(x - step, z);
+    const dz = this.getHeight(x, z + step) - this.getHeight(x, z - step);
+    return target.set(-dx, step * 2, -dz).normalize();
   }
 
   public getMoisture(x: number, z: number, height = this.getHeight(x, z)): number {
