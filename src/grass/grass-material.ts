@@ -4,11 +4,14 @@
  */
 
 import { BufferAttribute, BufferGeometry, DoubleSide, MathUtils, MeshPhongMaterial, MeshStandardMaterial } from 'three';
+import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
 import type { WindUniforms } from '../wind/wind-field';
 import { WIND_NOISE_GLSL } from '../wind/shader-chunks';
 
+const GRASS_SEGMENT_LENGTH = 1.1;
+
 export function prepareGrassGeometry(source: BufferGeometry): BufferGeometry {
-  const geometry = source.clone();
+  const geometry = new TessellateModifier(GRASS_SEGMENT_LENGTH, 1).modify(source);
   geometry.computeBoundingBox();
   const positions = geometry.getAttribute('position');
   const minimumY = geometry.boundingBox?.min.y ?? 0;
@@ -44,7 +47,7 @@ export function createGrassMaterial(source: MeshStandardMaterial, wind: WindUnif
     shader.vertexShader = `${grassDeclarations}\n${WIND_NOISE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', grassBendShader);
   };
-  material.customProgramCacheKey = () => 'endless-wilds-grass-v2';
+  material.customProgramCacheKey = () => 'endless-wilds-grass-v3';
   return material;
 }
 
