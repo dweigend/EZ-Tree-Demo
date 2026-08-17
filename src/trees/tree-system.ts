@@ -1,5 +1,5 @@
 /**
- * Fixed-capacity instanced tree renderer with ten EZ-Tree variants and three distance bands.
+ * Fixed-capacity instanced tree renderer with preset-based EZ-Tree variants and three distance bands.
  * Rebuilds batch data only when terrain streaming advances; no Object3D is created per tree.
  */
 
