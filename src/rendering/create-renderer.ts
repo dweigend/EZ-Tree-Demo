@@ -14,7 +14,7 @@ export function createRenderer(): WebGLRenderer {
   });
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = NeutralToneMapping;
-  renderer.toneMappingExposure = 1.25;
+  renderer.toneMappingExposure = 1.45;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDERING.pixelRatioCap));

@@ -18,6 +18,9 @@ uniform float uGlobalWindScale;
 
 export function createBranchMaterial(source: MeshPhongMaterial, wind: WindUniforms): MeshPhongMaterial {
   const material = source.clone();
+  material.color.set('#e1d4bd');
+  material.emissive.set('#3d3024');
+  material.emissiveIntensity = 0.12;
   material.shininess = 2;
   material.vertexColors = true;
   material.onBeforeCompile = (shader) => {

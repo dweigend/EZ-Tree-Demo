@@ -30,12 +30,12 @@ export class Environment {
   private readonly sunDirection: Vector3;
 
   public constructor(scene: Scene, wind: WindUniforms) {
-    this.sunDirection = new Vector3().setFromSpherical(new Spherical(1, MathUtils.degToRad(64), MathUtils.degToRad(228)));
+    this.sunDirection = new Vector3().setFromSpherical(new Spherical(1, MathUtils.degToRad(64), MathUtils.degToRad(325)));
     this.clouds = new CloudLayer(wind);
     this.configureSky();
     this.configureSun();
     this.group.add(this.sky, this.clouds.mesh, this.sun, this.target);
-    this.group.add(new HemisphereLight('#dcebf0', '#43513a', 1.7));
+    this.group.add(new HemisphereLight('#dcebf0', '#596848', 1.7));
     this.group.add(new AmbientLight('#b7c6be', 0.52));
     scene.background = new Color('#a9bec0');
     scene.add(this.group);
