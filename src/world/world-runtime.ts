@@ -121,8 +121,8 @@ export class WorldRuntime {
     this.trees.prepareStreaming(this.camera.position, this.viewDirection);
     this.groundCover.prepareStreaming(this.camera.position, this.viewDirection);
     const terrainChanged = this.terrain.update(this.camera.position, this.viewDirection);
-    this.refreshVegetation(terrainChanged);
-    this.terrain.processStreaming();
+    const vegetationRefreshed = this.refreshVegetation(terrainChanged);
+    if (!terrainChanged && !vegetationRefreshed) this.terrain.processStreaming();
     this.grass.update(this.camera.position);
     this.wind.update(elapsedSeconds);
     this.environment.update(this.camera);
@@ -138,23 +138,23 @@ export class WorldRuntime {
     this.camera.lookAt(new Vector3(0, targetHeight, -80));
   }
 
-  private refreshVegetation(terrainChanged: boolean): void {
+  private refreshVegetation(terrainChanged: boolean): boolean {
     if (terrainChanged) {
       this.trees.rebuild(this.camera.position, this.viewDirection);
-      this.groundCover.rebuild(this.camera.position, this.viewDirection);
       this.vegetationDirection.copy(this.viewDirection);
-      this.groundCoverRefreshPending = false;
-      return;
+      this.groundCoverRefreshPending = true;
+      return true;
     }
     if (this.hasTurnedPastVegetationWindow()) {
       this.trees.rebuild(this.camera.position, this.viewDirection);
       this.vegetationDirection.copy(this.viewDirection);
       this.groundCoverRefreshPending = true;
-      return;
+      return true;
     }
-    if (!this.groundCoverRefreshPending) return;
+    if (!this.groundCoverRefreshPending) return false;
     this.groundCover.rebuild(this.camera.position, this.viewDirection);
     this.groundCoverRefreshPending = false;
+    return true;
   }
 
   private hasTurnedPastVegetationWindow(): boolean {

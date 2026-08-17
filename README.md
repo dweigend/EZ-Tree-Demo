@@ -56,3 +56,5 @@ Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder verschwinde
 Vegetations-, Stein- und Bodenassets stammen aus der offiziellen EZ-Tree-Demo und werden lokal
 ausgeliefert. Herkunft und Lizenzen sind unter [`public/assets/ATTRIBUTION.md`](public/assets/ATTRIBUTION.md)
 dokumentiert.
+
+Gemessene Budgets und priorisierte nächste Optimierungen stehen in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
