@@ -6,6 +6,7 @@
 import { Group, Vector3 } from 'three';
 import type { GroundTextureAssets } from '../assets/landscape-assets';
 import { TERRAIN } from '../config';
+import { getChunkSquare, type ChunkCoordinate } from '../world/chunk-coordinates';
 import type { HeightField } from './height-field';
 import { TerrainChunk } from './terrain-chunk';
 import { createTerrainMaterial } from './terrain-material';
@@ -80,15 +81,8 @@ export class TerrainSystem {
     assignment.chunk.assign(assignment.x, assignment.z);
   }
 
-  private getDesiredCoordinates(): Map<string, { readonly x: number; readonly z: number }> {
-    const desired = new Map<string, { readonly x: number; readonly z: number }>();
-    for (let z = -TERRAIN.chunkRadius; z <= TERRAIN.chunkRadius; z += 1) {
-      for (let x = -TERRAIN.chunkRadius; x <= TERRAIN.chunkRadius; x += 1) {
-        const coordinate = { x: this.centerX + x, z: this.centerZ + z };
-        desired.set(`${coordinate.x}:${coordinate.z}`, coordinate);
-      }
-    }
-    return desired;
+  private getDesiredCoordinates(): Map<string, ChunkCoordinate> {
+    return new Map(getChunkSquare(this.centerX, this.centerZ, TERRAIN.chunkRadius).map((coordinate) => [coordinate.key, coordinate]));
   }
 
   private releaseMissingChunks(desired: ReadonlyMap<string, unknown>): TerrainChunk[] {

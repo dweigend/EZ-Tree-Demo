@@ -17,6 +17,7 @@ import {
 } from 'three';
 import type { InstancedModelAsset, LandscapeAssets } from '../assets/landscape-assets';
 import { TERRAIN, VEGETATION } from '../config';
+import { getChunkRing, getChunkSquare, type ChunkCoordinate } from '../world/chunk-coordinates';
 import type { WindUniforms } from '../wind/wind-field';
 import type { FlowerPlacement, GroundCoverDistribution, RockPlacement } from './ground-cover-distribution';
 import { createFlowerMaterial, createRockMaterial } from './ground-cover-materials';
@@ -50,7 +51,7 @@ export class GroundCoverSystem {
   private readonly color = new Color();
   private prefetchCenterX = Number.NaN;
   private prefetchCenterZ = Number.NaN;
-  private readonly prefetchQueue: Array<readonly [number, number]> = [];
+  private readonly prefetchQueue: ChunkCoordinate[] = [];
 
   public constructor(
     assets: LandscapeAssets,
@@ -78,7 +79,7 @@ export class GroundCoverSystem {
       this.fillPrefetchQueue(centerX, centerZ);
     }
     const coordinate = this.prefetchQueue.shift();
-    if (coordinate) this.distribution.getChunkPlacements(coordinate[0], coordinate[1]);
+    if (coordinate) this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
   }
 
   public dispose(): void {
@@ -91,24 +92,16 @@ export class GroundCoverSystem {
   }
 
   private fillStreamingWindow(centerX: number, centerZ: number, cameraPosition: Vector3): void {
-    for (let z = -TERRAIN.chunkRadius; z <= TERRAIN.chunkRadius; z += 1) {
-      for (let x = -TERRAIN.chunkRadius; x <= TERRAIN.chunkRadius; x += 1) {
-        const placements = this.distribution.getChunkPlacements(centerX + x, centerZ + z);
-        placements.flowers.forEach((placement) => this.addFlower(placement, cameraPosition));
-        placements.rocks.forEach((placement) => this.addRock(placement, cameraPosition));
-      }
+    for (const coordinate of getChunkSquare(centerX, centerZ, TERRAIN.chunkRadius)) {
+      const placements = this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
+      placements.flowers.forEach((placement) => this.addFlower(placement, cameraPosition));
+      placements.rocks.forEach((placement) => this.addRock(placement, cameraPosition));
     }
   }
 
   private fillPrefetchQueue(centerX: number, centerZ: number): void {
     this.prefetchQueue.length = 0;
-    const radius = TERRAIN.chunkRadius + 1;
-    for (let offset = -radius; offset <= radius; offset += 1) {
-      this.prefetchQueue.push([centerX + offset, centerZ - radius], [centerX + offset, centerZ + radius]);
-    }
-    for (let offset = -radius + 1; offset < radius; offset += 1) {
-      this.prefetchQueue.push([centerX - radius, centerZ + offset], [centerX + radius, centerZ + offset]);
-    }
+    this.prefetchQueue.push(...getChunkRing(centerX, centerZ, TERRAIN.chunkRadius + 1));
   }
 
   private addFlower(placement: FlowerPlacement, cameraPosition: Vector3): void {
