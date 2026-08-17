@@ -1,0 +1,11 @@
+# Dependency and build outputs
+node_modules/
+dist/
+
+# Local browser QA artifacts
+.playwright-cli/
+output/
+
+# Local tooling and operating-system files
+*.log
+.DS_Store
