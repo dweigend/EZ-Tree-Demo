@@ -46,7 +46,7 @@ http://localhost:5173/?distance=900&relief=1.25
 - `rendering/`: WebGL2, Color Management, Himmel, eine GPU-Wolkenschicht, Fog und begrenzte Schatten
 - `world/`: explizite Frame-Reihenfolge und Lifecycle
 
-Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder verschwinden in abgestimmtem Fog und Himmel. Wald- und Ground-Cover-Daten werden vor Chunk-Wechseln in Blickrichtung priorisiert; Gras- und Terrain-Aufbau verteilen ihre Arbeit über mehrere Frames. Ein vollständiger Sicherheitsbereich um die Kamera verhindert Löcher bei schnellen Drehungen.
+Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder verschwinden in abgestimmtem Fog und Himmel. Das Terrain behält ein vollständiges Sicherheitsfenster um die Kamera. Vegetation nutzt darin einen vollen 3×3-Kern plus einen breiten Vorwärtssektor; weit hinter der Blickrichtung werden nur kleine Assets ausgelassen. Wald- und Ground-Cover-Daten werden vor Chunk-Wechseln in Blickrichtung priorisiert, während Gras- und Terrain-Aufbau ihre Arbeit über mehrere Frames verteilen.
 
 ## Abhängigkeiten
 

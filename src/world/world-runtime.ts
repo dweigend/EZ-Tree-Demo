@@ -31,6 +31,7 @@ export interface LandscapeDiagnostics {
   flowers: number;
   rocks: number;
   activeChunks: number;
+  detailedChunks: number;
   geometries: number;
   textures: number;
   position: readonly [number, number, number];
@@ -55,6 +56,8 @@ export class WorldRuntime {
   private readonly groundCover: GroundCoverSystem;
   private readonly diagnostics: LandscapeDiagnostics;
   private readonly viewDirection = new Vector3();
+  private readonly vegetationDirection = new Vector3();
+  private groundCoverRefreshPending = false;
   private averageFrameTime = 16.7;
   private peakFrameTime = 0;
   private lastDiagnosticsUpdate = Number.NEGATIVE_INFINITY;
@@ -85,9 +88,10 @@ export class WorldRuntime {
   public start(): void {
     this.camera.getWorldDirection(this.viewDirection);
     this.terrain.update(this.camera.position, this.viewDirection);
-    this.trees.rebuild(this.camera.position);
+    this.trees.rebuild(this.camera.position, this.viewDirection);
     this.grass.update(this.camera.position);
-    this.groundCover.rebuild(this.camera.position);
+    this.groundCover.rebuild(this.camera.position, this.viewDirection);
+    this.vegetationDirection.copy(this.viewDirection);
     this.environment.update(this.camera);
     this.clock.start();
     this.renderer.setAnimationLoop(this.renderFrame);
@@ -117,10 +121,7 @@ export class WorldRuntime {
     this.trees.prepareStreaming(this.camera.position, this.viewDirection);
     this.groundCover.prepareStreaming(this.camera.position, this.viewDirection);
     const terrainChanged = this.terrain.update(this.camera.position, this.viewDirection);
-    if (terrainChanged) {
-      this.trees.rebuild(this.camera.position);
-      this.groundCover.rebuild(this.camera.position);
-    }
+    this.refreshVegetation(terrainChanged);
     this.terrain.processStreaming();
     this.grass.update(this.camera.position);
     this.wind.update(elapsedSeconds);
@@ -135,6 +136,33 @@ export class WorldRuntime {
     this.camera.position.set(0, ground + 62, startZ);
     const targetHeight = this.heightField.getHeight(0, -80) + 20;
     this.camera.lookAt(new Vector3(0, targetHeight, -80));
+  }
+
+  private refreshVegetation(terrainChanged: boolean): void {
+    if (terrainChanged) {
+      this.trees.rebuild(this.camera.position, this.viewDirection);
+      this.groundCover.rebuild(this.camera.position, this.viewDirection);
+      this.vegetationDirection.copy(this.viewDirection);
+      this.groundCoverRefreshPending = false;
+      return;
+    }
+    if (this.hasTurnedPastVegetationWindow()) {
+      this.trees.rebuild(this.camera.position, this.viewDirection);
+      this.vegetationDirection.copy(this.viewDirection);
+      this.groundCoverRefreshPending = true;
+      return;
+    }
+    if (!this.groundCoverRefreshPending) return;
+    this.groundCover.rebuild(this.camera.position, this.viewDirection);
+    this.groundCoverRefreshPending = false;
+  }
+
+  private hasTurnedPastVegetationWindow(): boolean {
+    const currentLength = Math.hypot(this.viewDirection.x, this.viewDirection.z);
+    const previousLength = Math.hypot(this.vegetationDirection.x, this.vegetationDirection.z);
+    if (currentLength === 0 || previousLength === 0) return false;
+    const dot = this.viewDirection.x * this.vegetationDirection.x + this.viewDirection.z * this.vegetationDirection.z;
+    return dot / (currentLength * previousLength) < 0.5;
   }
 
   private updateDiagnostics(deltaSeconds: number, elapsedSeconds: number): void {
@@ -155,6 +183,7 @@ export class WorldRuntime {
       flowers: this.groundCover.visibleFlowerCount,
       rocks: this.groundCover.visibleRockCount,
       activeChunks: this.terrain.activeChunkCount,
+      detailedChunks: this.trees.activeChunkCount,
       geometries: info.memory.geometries,
       textures: info.memory.textures,
       position: this.camera.position.toArray(),
@@ -186,6 +215,7 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
     flowers: 0,
     rocks: 0,
     activeChunks: 0,
+    detailedChunks: 0,
     geometries: 0,
     textures: 0,
     position: [0, 0, 0],
@@ -198,5 +228,5 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
 
 function formatDiagnostics(value: LandscapeDiagnostics): string {
   const triangles = Math.round(value.triangles / 1_000);
-  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.flowers} flowers · ${value.rocks} rocks · ${value.viewDistance} m view · ${value.relief.toFixed(2)} relief`;
+  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.flowers} flowers · ${value.rocks} rocks · ${value.activeChunks}/${value.detailedChunks} chunks · ${value.viewDistance} m · r${value.relief.toFixed(2)}`;
 }

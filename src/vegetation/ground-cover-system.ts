@@ -19,7 +19,7 @@ import type { InstancedModelAsset, LandscapeAssets } from '../assets/landscape-a
 import { TERRAIN, VEGETATION } from '../config';
 import {
   getChunkRing,
-  getChunkSquare,
+  getChunkViewWindow,
   prioritiseChunkDirection,
   type ChunkCoordinate,
   type HorizontalDirection,
@@ -68,11 +68,9 @@ export class GroundCoverSystem {
     this.rockBatches = assets.rocks.map((asset) => this.createRockBatch(asset));
   }
 
-  public rebuild(cameraPosition: Vector3): void {
+  public rebuild(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
     this.resetBatches();
-    const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    this.fillStreamingWindow(centerX, centerZ, cameraPosition);
+    this.fillStreamingWindow(cameraPosition, viewDirection);
     this.finaliseBatches();
   }
 
@@ -97,8 +95,10 @@ export class GroundCoverSystem {
     this.group.clear();
   }
 
-  private fillStreamingWindow(centerX: number, centerZ: number, cameraPosition: Vector3): void {
-    for (const coordinate of getChunkSquare(centerX, centerZ, TERRAIN.chunkRadius)) {
+  private fillStreamingWindow(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
+    const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+    const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+    for (const coordinate of getChunkViewWindow(centerX, centerZ, TERRAIN.chunkRadius, viewDirection)) {
       const placements = this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
       placements.flowers.forEach((placement) => this.addFlower(placement, cameraPosition));
       placements.rocks.forEach((placement) => this.addRock(placement, cameraPosition));

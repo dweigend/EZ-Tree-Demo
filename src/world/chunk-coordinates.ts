@@ -30,6 +30,24 @@ export function getChunkRing(centerX: number, centerZ: number, radius: number): 
   ));
 }
 
+export function getChunkViewWindow(
+  centerX: number,
+  centerZ: number,
+  radius: number,
+  direction: HorizontalDirection,
+  safetyRadius = 1,
+): ChunkCoordinate[] {
+  return getChunkSquare(centerX, centerZ, radius).filter((coordinate) => {
+    const x = coordinate.x - centerX;
+    const z = coordinate.z - centerZ;
+    if (Math.max(Math.abs(x), Math.abs(z)) <= safetyRadius) return true;
+    const distance = Math.hypot(x, z);
+    const directionLength = Math.hypot(direction.x, direction.z);
+    if (distance === 0 || directionLength === 0) return true;
+    return (x * direction.x + z * direction.z) / (distance * directionLength) >= -0.15;
+  });
+}
+
 export function prioritiseChunkDirection(
   coordinates: readonly ChunkCoordinate[],
   centerX: number,

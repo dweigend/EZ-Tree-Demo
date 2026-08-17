@@ -121,7 +121,9 @@ export class ForestDistribution {
   }
 
   private chooseSpecies(x: number, z: number, height: number, slope: number, moisture: number): TreeSpecies {
-    const biome = this.heightField.getNoise(x - 610, z + 370, 0.00085, 3) * 0.5 + 0.5;
+    const broadBiome = this.heightField.getNoise(x - 610, z + 370, 0.00085, 3) * 0.5 + 0.5;
+    const localBiome = this.heightField.getNoise(x + 190, z - 430, 0.0045, 2) * 0.5 + 0.5;
+    const biome = broadBiome * 0.72 + localBiome * 0.28;
     const highland = MathUtils.smoothstep(height, 58, 175);
     const pineAffinity = highland * 0.62 + MathUtils.smoothstep(slope, 0.32, 0.8) * 0.18 + (1 - moisture) * 0.16;
     if (biome < pineAffinity) return 'pine';

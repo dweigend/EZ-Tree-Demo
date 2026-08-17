@@ -16,7 +16,7 @@ import {
 import { TERRAIN, VEGETATION } from '../config';
 import {
   getChunkRing,
-  getChunkSquare,
+  getChunkViewWindow,
   prioritiseChunkDirection,
   type ChunkCoordinate,
   type HorizontalDirection,
@@ -46,6 +46,7 @@ const BARK_LIGHT = new Color('#f6e8d2');
 export class TreeSystem {
   public readonly group = new Object3D();
   public visibleTreeCount = 0;
+  public activeChunkCount = 0;
   private readonly batches: TreeBatch[][];
   private readonly transform = new Matrix4();
   private readonly rotation = new Quaternion();
@@ -61,11 +62,9 @@ export class TreeSystem {
     this.batches = variants.map((variant) => LODS.map((lod) => this.createBatch(variant, lod)));
   }
 
-  public rebuild(cameraPosition: Vector3): void {
+  public rebuild(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
     this.resetBatches();
-    const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    this.fillStreamingWindow(centerX, centerZ, cameraPosition);
+    this.fillStreamingWindow(cameraPosition, viewDirection);
     this.finaliseBatches();
   }
 
@@ -95,8 +94,12 @@ export class TreeSystem {
     this.group.clear();
   }
 
-  private fillStreamingWindow(centerX: number, centerZ: number, cameraPosition: Vector3): void {
-    for (const coordinate of getChunkSquare(centerX, centerZ, TERRAIN.chunkRadius)) {
+  private fillStreamingWindow(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
+    const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+    const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+    const coordinates = getChunkViewWindow(centerX, centerZ, TERRAIN.chunkRadius, viewDirection);
+    this.activeChunkCount = coordinates.length;
+    for (const coordinate of coordinates) {
       const placements = this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
       for (const placement of placements) this.addPlacement(placement, cameraPosition);
     }
