@@ -46,7 +46,7 @@ export class WorldRuntime {
   private readonly heightField = new HeightField(WORLD_SEED);
   private readonly wind = new WindField();
   private readonly terrain: TerrainSystem;
-  private readonly environment = new Environment(this.scene);
+  private readonly environment: Environment;
   private readonly controls: FlightControls;
   private readonly grass: GrassSystem;
   private readonly trees: TreeSystem;
@@ -62,6 +62,7 @@ export class WorldRuntime {
     private readonly assets: LandscapeAssets,
   ) {
     this.scene.fog = new FogExp2('#b8c8c0', RENDERING.fogDensity);
+    this.environment = new Environment(this.scene, this.wind.uniforms);
     this.positionCamera();
     mount.append(this.renderer.domElement);
     this.terrain = new TerrainSystem(this.heightField, assets.ground);
@@ -109,6 +110,7 @@ export class WorldRuntime {
     const elapsedSeconds = this.clock.elapsedTime;
     this.controls.update(simulationDeltaSeconds);
     this.trees.prepareStreaming(this.camera.position);
+    this.groundCover.prepareStreaming(this.camera.position);
     const terrainChanged = this.terrain.update(this.camera.position);
     if (terrainChanged) {
       this.trees.rebuild(this.camera.position);

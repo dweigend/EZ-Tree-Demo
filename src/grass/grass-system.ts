@@ -11,6 +11,7 @@ import {
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
+  MeshPhongMaterial,
   MeshStandardMaterial,
   Quaternion,
   Vector3,
@@ -38,7 +39,7 @@ interface GrassBuildJob {
 }
 
 export class GrassSystem {
-  public readonly mesh: InstancedMesh<BufferGeometry, MeshStandardMaterial>;
+  public readonly mesh: InstancedMesh<BufferGeometry, MeshPhongMaterial>;
   public visibleBladeCount = 0;
   private readonly rotation: InstancedBufferAttribute;
   private readonly phase: InstancedBufferAttribute;
@@ -147,8 +148,8 @@ export class GrassSystem {
   }
 
   private writeBlade(index: number, x: number, z: number, y: number, hash: number): void {
-    const height = 0.38 + unitRandom(hashCoordinates(hash, 23, 29)) * 0.4;
-    const width = 0.28 + unitRandom(hashCoordinates(hash, 31, 37)) * 0.16;
+    const height = 0.9 + unitRandom(hashCoordinates(hash, 23, 29)) * 0.5;
+    const width = 0.42 + unitRandom(hashCoordinates(hash, 31, 37)) * 0.24;
     this.position.set(x, y - 0.03, z);
     this.scale.set(width, height, width);
     this.transform.compose(this.position, IDENTITY_ROTATION, this.scale);
@@ -171,15 +172,14 @@ export class GrassSystem {
   }
 }
 
-function createGrassMaterial(source: MeshStandardMaterial, wind: WindUniforms): MeshStandardMaterial {
-  const material = new MeshStandardMaterial({
+function createGrassMaterial(source: MeshStandardMaterial, wind: WindUniforms): MeshPhongMaterial {
+  const material = new MeshPhongMaterial({
     map: source.map,
-    color: '#9eae75',
-    emissive: '#203819',
-    emissiveIntensity: 0.04,
+    color: '#dce7b8',
+    emissive: '#42673b',
+    emissiveIntensity: 0.15,
     alphaTest: 0.45,
-    roughness: 1,
-    metalness: 0,
+    shininess: 1,
     side: DoubleSide,
     vertexColors: true,
   });

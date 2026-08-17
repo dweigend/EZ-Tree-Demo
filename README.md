@@ -1,6 +1,6 @@
 # Endless Wilds
 
-Experimenteller WebGL2-Prototyp einer praktisch unendlichen, prozedural erzeugten Landschaft mit frei steuerbarem Flug, gestreamten Terrain-Chunks, EZ-Tree-Wäldern und GPU-animiertem Gras.
+Experimenteller WebGL2-Prototyp einer praktisch unendlichen, prozedural erzeugten Landschaft mit frei steuerbarem Flug, gestreamten Terrain-Chunks und instanzierter Vegetation aus EZ-Tree-Assets.
 
 ## Start
 
@@ -27,15 +27,16 @@ bun run build
 
 ## Architektur
 
-- `terrain/`: kontinuierliches, deterministisches Höhenfeld und recycelte Terrain-Chunks
-- `trees/` und `vegetation/`: zehn einmalig erzeugte EZ-Tree-Varianten, drei LOD-Bänder und ökologische Waldverteilung
-- `grass/`: ein kamera-zentriertes Instancing-Batch mit inkrementellem CPU-Aufbau und GPU-Wind
-- `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume und Gras
+- `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und weltkoordinatenbasierte Gras-Erde-Mischung
+- `trees/`: zehn einmalig erzeugte EZ-Tree-Varianten in globalen Instancing-Batches und drei LOD-Bändern
+- `vegetation/`: deterministische Wald-, Blumen- und Steinverteilung; sechs globale Ground-Cover-Batches
+- `grass/`: ein kamera-zentriertes Instancing-Batch mit Distanz-Ausdünnung und inkrementellem Aufbau
+- `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume, Gras, Blumen und Wolken
 - `controls/`: isolierte Pointer-Lock-Flugsteuerung
-- `rendering/`: WebGL2, Color Management, Himmel, Licht und begrenzte Schatten
+- `rendering/`: WebGL2, Color Management, Himmel, eine GPU-Wolkenschicht, Fog und begrenzte Schatten
 - `world/`: explizite Frame-Reihenfolge und Lifecycle
 
-Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder werden im Nebel verdeckt, Wald-Chunks vorausberechnet und Gras- sowie Terrain-Streaming über mehrere Frames verteilt, um periodische Frame-Spikes zu vermeiden.
+Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder verschwinden in abgestimmtem Fog und Himmel. Wald- und Ground-Cover-Daten werden vor Chunk-Wechseln vorausberechnet; Gras- und Terrain-Aufbau verteilen ihre Arbeit über mehrere Frames.
 
 ## Abhängigkeiten
 

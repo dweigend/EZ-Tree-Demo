@@ -18,27 +18,32 @@ import {
 } from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { RENDERING } from '../config';
+import type { WindUniforms } from '../wind/wind-field';
+import { CloudLayer } from './cloud-layer';
 
 export class Environment {
   private readonly group = new Group();
   private readonly sky = new Sky();
-  private readonly sun = new DirectionalLight('#fff1d2', 3.4);
+  private readonly clouds: CloudLayer;
+  private readonly sun = new DirectionalLight('#fff1d2', 3.1);
   private readonly target = new Object3D();
   private readonly sunDirection: Vector3;
 
-  public constructor(scene: Scene) {
+  public constructor(scene: Scene, wind: WindUniforms) {
     this.sunDirection = new Vector3().setFromSpherical(new Spherical(1, MathUtils.degToRad(64), MathUtils.degToRad(228)));
+    this.clouds = new CloudLayer(wind);
     this.configureSky();
     this.configureSun();
-    this.group.add(this.sky, this.sun, this.target);
-    this.group.add(new HemisphereLight('#dcebf0', '#43513a', 1.55));
-    this.group.add(new AmbientLight('#b7c6be', 0.32));
+    this.group.add(this.sky, this.clouds.mesh, this.sun, this.target);
+    this.group.add(new HemisphereLight('#dcebf0', '#43513a', 1.7));
+    this.group.add(new AmbientLight('#b7c6be', 0.52));
     scene.background = new Color('#a9bec0');
     scene.add(this.group);
   }
 
   public update(camera: PerspectiveCamera): void {
     this.sky.position.copy(camera.position);
+    this.clouds.update(camera);
     this.target.position.copy(camera.position);
     this.target.position.y -= 80;
     this.target.position.z -= 20;
@@ -49,6 +54,7 @@ export class Environment {
   public dispose(): void {
     this.sky.geometry.dispose();
     this.sky.material.dispose();
+    this.clouds.dispose();
     this.group.removeFromParent();
   }
 

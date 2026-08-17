@@ -48,6 +48,9 @@ export class GroundCoverSystem {
   private readonly scale = new Vector3();
   private readonly normal = new Vector3();
   private readonly color = new Color();
+  private prefetchCenterX = Number.NaN;
+  private prefetchCenterZ = Number.NaN;
+  private readonly prefetchQueue: Array<readonly [number, number]> = [];
 
   public constructor(
     assets: LandscapeAssets,
@@ -66,6 +69,18 @@ export class GroundCoverSystem {
     this.finaliseBatches();
   }
 
+  public prepareStreaming(cameraPosition: Vector3): void {
+    const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+    const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+    if (centerX !== this.prefetchCenterX || centerZ !== this.prefetchCenterZ) {
+      this.prefetchCenterX = centerX;
+      this.prefetchCenterZ = centerZ;
+      this.fillPrefetchQueue(centerX, centerZ);
+    }
+    const coordinate = this.prefetchQueue.shift();
+    if (coordinate) this.distribution.getChunkPlacements(coordinate[0], coordinate[1]);
+  }
+
   public dispose(): void {
     for (const batch of [...this.flowerBatches, ...this.rockBatches]) {
       batch.mesh.geometry.dispose();
@@ -82,6 +97,17 @@ export class GroundCoverSystem {
         placements.flowers.forEach((placement) => this.addFlower(placement, cameraPosition));
         placements.rocks.forEach((placement) => this.addRock(placement, cameraPosition));
       }
+    }
+  }
+
+  private fillPrefetchQueue(centerX: number, centerZ: number): void {
+    this.prefetchQueue.length = 0;
+    const radius = TERRAIN.chunkRadius + 1;
+    for (let offset = -radius; offset <= radius; offset += 1) {
+      this.prefetchQueue.push([centerX + offset, centerZ - radius], [centerX + offset, centerZ + radius]);
+    }
+    for (let offset = -radius + 1; offset < radius; offset += 1) {
+      this.prefetchQueue.push([centerX - radius, centerZ + offset], [centerX + radius, centerZ + offset]);
     }
   }
 
