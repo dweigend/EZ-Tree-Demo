@@ -6,7 +6,12 @@
 import { Group, Vector3 } from 'three';
 import type { GroundTextureAssets } from '../assets/landscape-assets';
 import { TERRAIN } from '../config';
-import { getChunkSquare, type ChunkCoordinate } from '../world/chunk-coordinates';
+import {
+  getChunkSquare,
+  prioritiseChunkDirection,
+  type ChunkCoordinate,
+  type HorizontalDirection,
+} from '../world/chunk-coordinates';
 import type { HeightField } from './height-field';
 import { TerrainChunk } from './terrain-chunk';
 import { createTerrainMaterial } from './terrain-material';
@@ -38,13 +43,13 @@ export class TerrainSystem {
     }
   }
 
-  public update(position: Vector3): boolean {
+  public update(position: Vector3, viewDirection: HorizontalDirection): boolean {
     const nextX = Math.floor((position.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
     const nextZ = Math.floor((position.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
     if (nextX === this.centerX && nextZ === this.centerZ) return false;
     this.centerX = nextX;
     this.centerZ = nextZ;
-    this.scheduleChunks();
+    this.scheduleChunks(viewDirection);
     if (!this.initialised) {
       while (this.pendingAssignments.length > 0) this.processNextAssignment();
       this.initialised = true;
@@ -63,8 +68,8 @@ export class TerrainSystem {
     this.group.clear();
   }
 
-  private scheduleChunks(): void {
-    const desired = this.getDesiredCoordinates();
+  private scheduleChunks(viewDirection: HorizontalDirection): void {
+    const desired = this.getDesiredCoordinates(viewDirection);
     const recycled = this.releaseMissingChunks(desired);
     for (const [key, coordinates] of desired) {
       if (this.activeChunks.has(key)) continue;
@@ -81,8 +86,10 @@ export class TerrainSystem {
     assignment.chunk.assign(assignment.x, assignment.z);
   }
 
-  private getDesiredCoordinates(): Map<string, ChunkCoordinate> {
-    return new Map(getChunkSquare(this.centerX, this.centerZ, TERRAIN.chunkRadius).map((coordinate) => [coordinate.key, coordinate]));
+  private getDesiredCoordinates(viewDirection: HorizontalDirection): Map<string, ChunkCoordinate> {
+    const square = getChunkSquare(this.centerX, this.centerZ, TERRAIN.chunkRadius);
+    const prioritised = prioritiseChunkDirection(square, this.centerX, this.centerZ, viewDirection);
+    return new Map(prioritised.map((coordinate) => [coordinate.key, coordinate]));
   }
 
   private releaseMissingChunks(desired: ReadonlyMap<string, unknown>): TerrainChunk[] {

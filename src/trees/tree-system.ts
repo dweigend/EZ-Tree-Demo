@@ -14,7 +14,13 @@ import {
   Vector3,
 } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
-import { getChunkRing, getChunkSquare, type ChunkCoordinate } from '../world/chunk-coordinates';
+import {
+  getChunkRing,
+  getChunkSquare,
+  prioritiseChunkDirection,
+  type ChunkCoordinate,
+  type HorizontalDirection,
+} from '../world/chunk-coordinates';
 import type { ForestDistribution, TreePlacement } from '../vegetation/forest-distribution';
 import type { TreeGeometryPair, TreeLod, TreeVariant } from './tree-factory';
 
@@ -59,13 +65,13 @@ export class TreeSystem {
     this.finaliseBatches();
   }
 
-  public prepareStreaming(cameraPosition: Vector3): void {
+  public prepareStreaming(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
     const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
     const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
     if (centerX !== this.prefetchCenterX || centerZ !== this.prefetchCenterZ) {
       this.prefetchCenterX = centerX;
       this.prefetchCenterZ = centerZ;
-      this.fillPrefetchQueue(centerX, centerZ);
+      this.fillPrefetchQueue(centerX, centerZ, viewDirection);
     }
     const coordinate = this.prefetchQueue.shift();
     if (coordinate) this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
@@ -92,9 +98,10 @@ export class TreeSystem {
     }
   }
 
-  private fillPrefetchQueue(centerX: number, centerZ: number): void {
+  private fillPrefetchQueue(centerX: number, centerZ: number, viewDirection: HorizontalDirection): void {
     this.prefetchQueue.length = 0;
-    this.prefetchQueue.push(...getChunkRing(centerX, centerZ, TERRAIN.chunkRadius + 1));
+    const ring = getChunkRing(centerX, centerZ, TERRAIN.chunkRadius + 1);
+    this.prefetchQueue.push(...prioritiseChunkDirection(ring, centerX, centerZ, viewDirection));
   }
 
   private addPlacement(placement: TreePlacement, cameraPosition: Vector3): void {

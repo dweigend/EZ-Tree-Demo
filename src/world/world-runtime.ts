@@ -53,6 +53,7 @@ export class WorldRuntime {
   private readonly trees: TreeSystem;
   private readonly groundCover: GroundCoverSystem;
   private readonly diagnostics: LandscapeDiagnostics;
+  private readonly viewDirection = new Vector3();
   private averageFrameTime = 16.7;
   private peakFrameTime = 0;
   private lastDiagnosticsUpdate = Number.NEGATIVE_INFINITY;
@@ -81,7 +82,8 @@ export class WorldRuntime {
   }
 
   public start(): void {
-    this.terrain.update(this.camera.position);
+    this.camera.getWorldDirection(this.viewDirection);
+    this.terrain.update(this.camera.position, this.viewDirection);
     this.trees.rebuild(this.camera.position);
     this.grass.update(this.camera.position);
     this.groundCover.rebuild(this.camera.position);
@@ -110,9 +112,10 @@ export class WorldRuntime {
     const simulationDeltaSeconds = Math.min(rawDeltaSeconds, 0.05);
     const elapsedSeconds = this.clock.elapsedTime;
     this.controls.update(simulationDeltaSeconds);
-    this.trees.prepareStreaming(this.camera.position);
-    this.groundCover.prepareStreaming(this.camera.position);
-    const terrainChanged = this.terrain.update(this.camera.position);
+    this.camera.getWorldDirection(this.viewDirection);
+    this.trees.prepareStreaming(this.camera.position, this.viewDirection);
+    this.groundCover.prepareStreaming(this.camera.position, this.viewDirection);
+    const terrainChanged = this.terrain.update(this.camera.position, this.viewDirection);
     if (terrainChanged) {
       this.trees.rebuild(this.camera.position);
       this.groundCover.rebuild(this.camera.position);

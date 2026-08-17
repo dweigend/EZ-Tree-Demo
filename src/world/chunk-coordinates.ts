@@ -9,6 +9,11 @@ export interface ChunkCoordinate {
   readonly z: number;
 }
 
+export interface HorizontalDirection {
+  readonly x: number;
+  readonly z: number;
+}
+
 export function getChunkSquare(centerX: number, centerZ: number, radius: number): ChunkCoordinate[] {
   const coordinates: ChunkCoordinate[] = [];
   for (let z = -radius; z <= radius; z += 1) {
@@ -25,6 +30,27 @@ export function getChunkRing(centerX: number, centerZ: number, radius: number): 
   ));
 }
 
+export function prioritiseChunkDirection(
+  coordinates: readonly ChunkCoordinate[],
+  centerX: number,
+  centerZ: number,
+  direction: HorizontalDirection,
+): ChunkCoordinate[] {
+  return [...coordinates].sort((left, right) => {
+    const forwardDifference = getForwardScore(right, centerX, centerZ, direction)
+      - getForwardScore(left, centerX, centerZ, direction);
+    return forwardDifference || getDistanceScore(left, centerX, centerZ) - getDistanceScore(right, centerX, centerZ);
+  });
+}
+
 function createCoordinate(x: number, z: number): ChunkCoordinate {
   return { key: `${x}:${z}`, x, z };
+}
+
+function getForwardScore(coordinate: ChunkCoordinate, centerX: number, centerZ: number, direction: HorizontalDirection): number {
+  return (coordinate.x - centerX) * direction.x + (coordinate.z - centerZ) * direction.z;
+}
+
+function getDistanceScore(coordinate: ChunkCoordinate, centerX: number, centerZ: number): number {
+  return Math.hypot(coordinate.x - centerX, coordinate.z - centerZ);
 }
