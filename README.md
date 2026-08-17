@@ -16,6 +16,14 @@ bun run check
 bun run build
 ```
 
+Die Sichtweite lässt sich beim Start validiert zwischen 720 und 1500 Metern setzen. Fog,
+Terrain-Fenster und Vegetations-LOD werden gemeinsam daraus abgeleitet:
+
+```text
+http://localhost:5173/?distance=900
+http://localhost:5173/?distance=1200&fog=0.0014
+```
+
 ## Steuerung
 
 - Klick: Pointer Lock

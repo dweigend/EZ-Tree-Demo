@@ -31,9 +31,11 @@ export function createBranchMaterial(source: MeshPhongMaterial, wind: WindUnifor
 
 export function createLeafMaterial(source: MeshPhongMaterial, wind: WindUniforms): MeshPhongMaterial {
   const material = source.clone();
-  material.emissive.set('#486038');
-  material.emissiveIntensity = 0.24;
+  material.color.set('#d5e3b4');
+  material.emissive.set('#3b552c');
+  material.emissiveIntensity = 0.2;
   material.shininess = 1;
+  material.dithering = true;
   const compileEzTreeWind = source.onBeforeCompile.bind(source);
   material.vertexColors = true;
   material.onBeforeCompile = (shader, renderer) => {

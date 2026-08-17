@@ -5,7 +5,7 @@
 
 import { Clock, FogExp2, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
 import { disposeLandscapeAssets, type LandscapeAssets } from '../assets/landscape-assets';
-import { RENDERING, WORLD_SEED } from '../config';
+import { LANDSCAPE_VIEW, RENDERING, WORLD_SEED } from '../config';
 import { FlightControls } from '../controls/flight-controls';
 import { hashString } from '../core/random';
 import { GrassSystem } from '../grass/grass-system';
@@ -35,6 +35,7 @@ export interface LandscapeDiagnostics {
   textures: number;
   position: readonly [number, number, number];
   speed: number;
+  viewDistance: number;
   seed: string;
 }
 
@@ -154,6 +155,7 @@ export class WorldRuntime {
       textures: info.memory.textures,
       position: this.camera.position.toArray(),
       speed: Math.round(this.controls.speed),
+      viewDistance: LANDSCAPE_VIEW.distance,
     });
     this.peakFrameTime = 0;
     this.diagnosticsElement.textContent = formatDiagnostics(this.diagnostics);
@@ -183,11 +185,12 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
     textures: 0,
     position: [0, 0, 0],
     speed: 0,
+    viewDistance: LANDSCAPE_VIEW.distance,
     seed: WORLD_SEED,
   };
 }
 
 function formatDiagnostics(value: LandscapeDiagnostics): string {
   const triangles = Math.round(value.triangles / 1_000);
-  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.flowers} flowers · ${value.rocks} rocks · ${value.speed} m/s`;
+  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.flowers} flowers · ${value.rocks} rocks · ${value.viewDistance} m view`;
 }

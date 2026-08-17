@@ -14,6 +14,8 @@ export interface TreePlacement {
   readonly z: number;
   readonly rotation: number;
   readonly scale: number;
+  readonly widthScale: number;
+  readonly depthScale: number;
   readonly variant: number;
   readonly windPhase: number;
   readonly windStrength: number;
@@ -91,6 +93,8 @@ export class ForestDistribution {
       z,
       rotation: unitRandom(hashCoordinates(hash, 3, 5)) * Math.PI * 2,
       scale: 0.76 + unitRandom(hashCoordinates(hash, 17, 19)) * 0.46,
+      widthScale: 0.82 + unitRandom(hashCoordinates(hash, 61, 67)) * 0.36,
+      depthScale: 0.84 + unitRandom(hashCoordinates(hash, 71, 73)) * 0.32,
       variant: hashCoordinates(hash, 23, 31) % this.variantCount,
       windPhase: unitRandom(hashCoordinates(hash, 37, 41)) * Math.PI * 2,
       windStrength: 0.72 + unitRandom(hashCoordinates(hash, 43, 47)) * 0.48,

@@ -14,6 +14,7 @@ import {
   Vector3,
 } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
+import { getChunkRing, getChunkSquare, type ChunkCoordinate } from '../world/chunk-coordinates';
 import type { ForestDistribution, TreePlacement } from '../vegetation/forest-distribution';
 import type { TreeGeometryPair, TreeLod, TreeVariant } from './tree-factory';
 
@@ -27,8 +28,8 @@ interface TreeBatch {
 
 const LODS: readonly TreeLod[] = ['near', 'middle', 'far'];
 const WHITE = new Color('#ffffff');
-const LEAF_DARK = new Color('#d1deb7');
-const LEAF_LIGHT = new Color('#f2edcf');
+const LEAF_DARK = new Color('#789950');
+const LEAF_LIGHT = new Color('#c5b866');
 const BARK_DARK = new Color('#c8c0b4');
 const BARK_LIGHT = new Color('#eee3d5');
 
@@ -44,7 +45,7 @@ export class TreeSystem {
   private readonly barkColor = new Color();
   private prefetchCenterX = Number.NaN;
   private prefetchCenterZ = Number.NaN;
-  private readonly prefetchQueue: Array<readonly [number, number]> = [];
+  private readonly prefetchQueue: ChunkCoordinate[] = [];
 
   public constructor(private readonly variants: readonly TreeVariant[], private readonly distribution: ForestDistribution) {
     this.batches = variants.map((variant) => LODS.map((lod) => this.createBatch(variant, lod)));
@@ -67,7 +68,7 @@ export class TreeSystem {
       this.fillPrefetchQueue(centerX, centerZ);
     }
     const coordinate = this.prefetchQueue.shift();
-    if (coordinate) this.distribution.getChunkPlacements(coordinate[0], coordinate[1]);
+    if (coordinate) this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
   }
 
   public dispose(): void {
@@ -85,23 +86,15 @@ export class TreeSystem {
   }
 
   private fillStreamingWindow(centerX: number, centerZ: number, cameraPosition: Vector3): void {
-    for (let z = -TERRAIN.chunkRadius; z <= TERRAIN.chunkRadius; z += 1) {
-      for (let x = -TERRAIN.chunkRadius; x <= TERRAIN.chunkRadius; x += 1) {
-        const placements = this.distribution.getChunkPlacements(centerX + x, centerZ + z);
-        for (const placement of placements) this.addPlacement(placement, cameraPosition);
-      }
+    for (const coordinate of getChunkSquare(centerX, centerZ, TERRAIN.chunkRadius)) {
+      const placements = this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
+      for (const placement of placements) this.addPlacement(placement, cameraPosition);
     }
   }
 
   private fillPrefetchQueue(centerX: number, centerZ: number): void {
     this.prefetchQueue.length = 0;
-    const radius = TERRAIN.chunkRadius + 1;
-    for (let offset = -radius; offset <= radius; offset += 1) {
-      this.prefetchQueue.push([centerX + offset, centerZ - radius], [centerX + offset, centerZ + radius]);
-    }
-    for (let offset = -radius + 1; offset < radius; offset += 1) {
-      this.prefetchQueue.push([centerX - radius, centerZ + offset], [centerX + radius, centerZ + offset]);
-    }
+    this.prefetchQueue.push(...getChunkRing(centerX, centerZ, TERRAIN.chunkRadius + 1));
   }
 
   private addPlacement(placement: TreePlacement, cameraPosition: Vector3): void {
@@ -121,7 +114,7 @@ export class TreeSystem {
     const worldHeight = variant.height * placement.scale;
     this.position.set(placement.x, placement.y - 0.12, placement.z);
     this.rotation.setFromAxisAngle(Object3D.DEFAULT_UP, placement.rotation);
-    this.scale.setScalar(worldHeight);
+    this.scale.set(worldHeight * placement.widthScale, worldHeight, worldHeight * placement.depthScale);
     this.transform.compose(this.position, this.rotation, this.scale);
     batch.branches.setMatrixAt(index, this.transform);
     batch.leaves.setMatrixAt(index, this.transform);

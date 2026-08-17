@@ -4,8 +4,9 @@
  */
 
 import { Tree, TreePreset } from '@dgreenheck/ez-tree';
-import { BufferAttribute, BufferGeometry, Matrix4, MeshPhongMaterial } from 'three';
+import { BufferAttribute, BufferGeometry, MathUtils, Matrix4, MeshPhongMaterial } from 'three';
 import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
+import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
 import type { WindUniforms } from '../wind/wind-field';
 import { createBranchMaterial, createLeafMaterial } from './tree-materials';
 
@@ -24,14 +25,14 @@ export interface TreeVariant {
 }
 
 const VARIANT_SOURCES = [
-  ['Oak Medium', 10_301, 15.5],
+  ['Oak Large', 10_301, 22],
   ['Oak Medium', 21_173, 17.5],
   ['Oak Small', 37_019, 11.5],
-  ['Ash Medium', 44_029, 18.5],
-  ['Ash Small', 51_061, 12.5],
-  ['Aspen Medium', 63_097, 17],
+  ['Ash Large', 44_029, 23],
+  ['Ash Medium', 51_061, 18.5],
+  ['Aspen Large', 63_097, 22],
   ['Aspen Small', 71_101, 12],
-  ['Pine Medium', 83_111, 19.5],
+  ['Pine Large', 83_111, 25],
   ['Pine Medium', 91_127, 16.5],
   ['Pine Small', 101_141, 12.5],
 ] as const;
@@ -43,9 +44,10 @@ export function createTreeVariants(wind: WindUniforms): TreeVariant[] {
 function createVariant(preset: keyof typeof TreePreset, seed: number, height: number, wind: WindUniforms): TreeVariant {
   // EZ-Tree accepts preset JSON at runtime, but its constructor type incorrectly requires TreeOptions.copy().
   const options = structuredClone(TreePreset[preset]) as Tree['options'];
+  options.seed = seed;
+  varyTreeOptions(options, seed);
+  reduceTreeComplexity(options);
   const tree = new Tree(options);
-  tree.options.seed = seed;
-  reduceTreeComplexity(tree);
   tree.generate();
   const near = normalisePair(tree.branchesMesh.geometry, tree.leavesMesh.geometry);
   const branchSource = requirePhongMaterial(tree.branchesMesh.material);
@@ -80,8 +82,34 @@ function createLods(near: TreeGeometryPair): Readonly<Record<TreeLod, TreeGeomet
   };
 }
 
-function reduceTreeComplexity(tree: Tree): void {
-  const branch = tree.options.branch;
+function varyTreeOptions(options: Tree['options'], seed: number): void {
+  varyBranchStructure(options, seed);
+  const leaves = options.leaves;
+  leaves.angle = MathUtils.clamp(leaves.angle + randomSigned(seed, 47) * 14, 8, 78);
+  leaves.count = Math.max(5, Math.round(leaves.count * randomScale(seed, 53, 0.78, 1.28)));
+  leaves.size *= randomScale(seed, 59, 0.82, 1.32);
+  leaves.sizeVariance = MathUtils.clamp(leaves.sizeVariance + randomSigned(seed, 61) * 0.18, 0.3, 0.9);
+}
+
+function varyBranchStructure(options: Tree['options'], seed: number): void {
+  const branch = options.branch;
+  branch.angle[1] *= randomScale(seed, 3, 0.78, 1.22);
+  branch.angle[2] *= randomScale(seed, 5, 0.8, 1.2);
+  branch.angle[3] *= randomScale(seed, 7, 0.82, 1.18);
+  branch.length[1] *= randomScale(seed, 11, 0.76, 1.28);
+  branch.length[2] *= randomScale(seed, 13, 0.72, 1.3);
+  branch.start[1] = MathUtils.clamp(branch.start[1] + randomSigned(seed, 17) * 0.12, 0.08, 0.76);
+  branch.start[2] = MathUtils.clamp(branch.start[2] + randomSigned(seed, 19) * 0.12, 0.04, 0.78);
+  branch.gnarliness[0] += randomSigned(seed, 23) * 0.08;
+  branch.gnarliness[1] += randomSigned(seed, 29) * 0.11;
+  branch.twist[1] += randomSigned(seed, 31) * 0.24;
+  branch.force.direction.x = randomSigned(seed, 37) * 0.22;
+  branch.force.direction.z = randomSigned(seed, 41) * 0.22;
+  branch.force.strength += randomSigned(seed, 43) * 0.018;
+}
+
+function reduceTreeComplexity(options: Tree['options']): void {
+  const branch = options.branch;
   branch.children[0] = Math.min(branch.children[0], 7);
   branch.children[1] = Math.min(branch.children[1], 4);
   branch.children[2] = Math.min(branch.children[2], 3);
@@ -93,8 +121,16 @@ function reduceTreeComplexity(tree: Tree): void {
   branch.segments[1] = Math.min(branch.segments[1], 5);
   branch.segments[2] = Math.min(branch.segments[2], 4);
   branch.segments[3] = 3;
-  tree.options.leaves.count = Math.min(tree.options.leaves.count, 14);
-  tree.options.leaves.size *= 1.18;
+  options.leaves.count = Math.min(options.leaves.count, 20);
+  options.leaves.size *= 1.12;
+}
+
+function randomScale(seed: number, salt: number, minimum: number, maximum: number): number {
+  return MathUtils.lerp(minimum, maximum, unitRandom(hashCoordinates(seed, salt, 0)));
+}
+
+function randomSigned(seed: number, salt: number): number {
+  return signedRandom(hashCoordinates(seed, salt, 0));
 }
 
 function inflateLeafCards(source: BufferGeometry, factor: number): BufferGeometry {

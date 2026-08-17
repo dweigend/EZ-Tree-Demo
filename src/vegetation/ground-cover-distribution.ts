@@ -78,7 +78,7 @@ export class GroundCoverDistribution {
     const moisture = this.heightField.getMoisture(x, z, height);
     const cover = this.heightField.getGroundCover(x, z, moisture);
     const woodland = this.heightField.getNoise(x + 240, z - 170, 0.00185, 3) * 0.5 + 0.5;
-    const probability = MathUtils.smoothstep(cover, 0.42, 0.82) * (0.24 - woodland * 0.08);
+    const probability = MathUtils.smoothstep(cover, 0.38, 0.8) * (0.36 - woodland * 0.1);
     if (unitRandom(hashCoordinates(hash, 7, 13)) >= probability) return null;
     return this.buildFlower(x, z, height, hash);
   }
@@ -119,7 +119,7 @@ export class GroundCoverDistribution {
     const cluster = this.heightField.getNoise(x - 430, z + 210, 0.0032, 2) * 0.5 + 0.5;
     const highland = MathUtils.smoothstep(height, 55, 195);
     const rugged = MathUtils.smoothstep(slope, 0.18, 0.82);
-    const probability = 0.025 + cluster * 0.055 + highland * 0.11 + rugged * 0.16;
+    const probability = 0.04 + cluster * 0.08 + highland * 0.14 + rugged * 0.2;
     if (unitRandom(hashCoordinates(hash, 71, 73)) >= probability) return null;
     return this.buildRock(x, z, height, hash);
   }

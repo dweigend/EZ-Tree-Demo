@@ -25,13 +25,15 @@ export class HeightField {
     const warpZ = this.fbm(x * 0.00072 - 47, z * 0.00072 + 23, 3) * 215;
     const warpedX = x + warpX;
     const warpedZ = z + warpZ;
+    const macroLandform = this.fbm(warpedX * 0.00028 + 17, warpedZ * 0.00028 - 29, 3) * 48;
     const continental = this.fbm(warpedX * 0.00062, warpedZ * 0.00062, 4);
     const mountainMask = MathUtils.smoothstep(continental, -0.18, 0.48);
     const ridges = this.ridgedFbm(warpedX * 0.00145, warpedZ * 0.00145, 4);
     const plains = MathUtils.smoothstep(this.fbm(x * 0.00038, z * 0.00038, 3), 0.18, 0.64);
     const hills = this.fbm(warpedX * 0.0034, warpedZ * 0.0034, 4) * 31;
     const valley = this.getValleyDepth(warpedX, warpedZ);
-    return continental * 24 + mountainMask * ridges ** 2.25 * 178 + hills * (1 - plains * 0.72) - valley;
+    return macroLandform + continental * 32 + mountainMask * ridges ** 2.25 * 198
+      + hills * (1 - plains * 0.72) - valley;
   }
 
   public getSlope(x: number, z: number): number {
@@ -66,7 +68,7 @@ export class HeightField {
   private getValleyDepth(x: number, z: number): number {
     const channel = Math.abs(this.fbm(x * 0.00105 + 103, z * 0.00105 - 71, 3));
     const valleyMask = 1 - MathUtils.smoothstep(channel, 0.02, 0.22);
-    return valleyMask * 34;
+    return valleyMask * 46;
   }
 
   private fbm(x: number, z: number, octaves: number): number {
