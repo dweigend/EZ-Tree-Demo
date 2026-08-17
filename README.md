@@ -17,11 +17,13 @@ bun run build
 ```
 
 Die Sichtweite lässt sich beim Start validiert zwischen 720 und 1500 Metern setzen. Fog,
-Terrain-Fenster und Vegetations-LOD werden gemeinsam daraus abgeleitet:
+Terrain-Fenster und Vegetations-LOD werden gemeinsam daraus abgeleitet. `relief` skaliert
+die großen Hügel und Täler zwischen `0.7` und `1.4`:
 
 ```text
 http://localhost:5173/?distance=900
 http://localhost:5173/?distance=1200&fog=0.0014
+http://localhost:5173/?distance=900&relief=1.25
 ```
 
 ## Steuerung
@@ -36,7 +38,7 @@ http://localhost:5173/?distance=1200&fog=0.0014
 ## Architektur
 
 - `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und weltkoordinatenbasierte Gras-Erde-Mischung
-- `trees/`: zehn einmalig erzeugte EZ-Tree-Varianten in globalen Instancing-Batches und drei LOD-Bändern
+- `trees/`: zwölf offizielle EZ-Tree-Preset-Templates in globalen Instancing-Batches und drei LOD-Bändern
 - `vegetation/`: deterministische Wald-, Blumen- und Steinverteilung; sechs globale Ground-Cover-Batches
 - `grass/`: ein kamera-zentriertes Instancing-Batch mit Distanz-Ausdünnung und inkrementellem Aufbau
 - `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume, Gras, Blumen und Wolken

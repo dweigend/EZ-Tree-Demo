@@ -8,10 +8,12 @@ export const WORLD_SEED = 'endless-wilds-2026';
 const DEFAULT_VIEW_DISTANCE = 1_050;
 const viewDistance = readNumberParameter('distance', DEFAULT_VIEW_DISTANCE, 720, 1_500);
 const fogDensity = readNumberParameter('fog', 1.7 / viewDistance, 0.0008, 0.0026);
+const relief = readNumberParameter('relief', 1, 0.7, 1.4);
 
 export const LANDSCAPE_VIEW = {
   distance: viewDistance,
   fogDensity,
+  relief,
 } as const;
 
 export const TERRAIN = {

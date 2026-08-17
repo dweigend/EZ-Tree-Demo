@@ -36,6 +36,7 @@ export interface LandscapeDiagnostics {
   position: readonly [number, number, number];
   speed: number;
   viewDistance: number;
+  relief: number;
   seed: string;
 }
 
@@ -44,7 +45,7 @@ export class WorldRuntime {
   private readonly camera = new PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, RENDERING.cameraFar);
   private readonly renderer: WebGLRenderer = createRenderer();
   private readonly clock = new Clock();
-  private readonly heightField = new HeightField(WORLD_SEED);
+  private readonly heightField = new HeightField(WORLD_SEED, LANDSCAPE_VIEW.relief);
   private readonly wind = new WindField();
   private readonly terrain: TerrainSystem;
   private readonly environment: Environment;
@@ -159,6 +160,7 @@ export class WorldRuntime {
       position: this.camera.position.toArray(),
       speed: Math.round(this.controls.speed),
       viewDistance: LANDSCAPE_VIEW.distance,
+      relief: LANDSCAPE_VIEW.relief,
     });
     this.peakFrameTime = 0;
     this.diagnosticsElement.textContent = formatDiagnostics(this.diagnostics);
@@ -189,11 +191,12 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
     position: [0, 0, 0],
     speed: 0,
     viewDistance: LANDSCAPE_VIEW.distance,
+    relief: LANDSCAPE_VIEW.relief,
     seed: WORLD_SEED,
   };
 }
 
 function formatDiagnostics(value: LandscapeDiagnostics): string {
   const triangles = Math.round(value.triangles / 1_000);
-  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.flowers} flowers · ${value.rocks} rocks · ${value.viewDistance} m view`;
+  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.flowers} flowers · ${value.rocks} rocks · ${value.viewDistance} m view · ${value.relief.toFixed(2)} relief`;
 }
