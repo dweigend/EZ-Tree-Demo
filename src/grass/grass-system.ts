@@ -9,6 +9,7 @@ import {
   BufferGeometry,
   InstancedBufferAttribute,
   InstancedMesh,
+  MathUtils,
   Matrix4,
   MeshPhongMaterial,
   Quaternion,
@@ -141,7 +142,13 @@ export class GrassSystem {
     const distanceRatio = distance / VEGETATION.grassRadius;
     const distanceKeep = distanceRatio < 0.62 ? 1 : Math.max(0.08, 1 - (distanceRatio - 0.62) / 0.38);
     const moisture = this.heightField.getMoisture(x, z, height);
-    const ecology = 0.22 + this.heightField.getGroundCover(x, z, moisture) * 0.78;
+    const cover = this.heightField.getGroundCover(x, z, moisture);
+    const meadow = MathUtils.smoothstep(cover, 0.3, 0.76);
+    const patch = this.heightField.getNoise(x - 130, z + 270, 0.012, 2) * 0.5 + 0.5;
+    const patchDensity = MathUtils.smoothstep(patch, 0.28, 0.72);
+    const woodland = this.heightField.getNoise(x + 240, z - 170, 0.00185, 3) * 0.5 + 0.5;
+    const forestShade = MathUtils.smoothstep(woodland, 0.68, 0.88);
+    const ecology = (0.04 + meadow * 0.78) * (0.16 + patchDensity * 0.84) * (1 - forestShade * 0.52);
     return unitRandom(hashCoordinates(hash, 17, 19)) < ecology * distanceKeep ? height : null;
   }
 

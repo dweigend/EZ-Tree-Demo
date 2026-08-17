@@ -23,7 +23,7 @@ export const TERRAIN = {
 
 export const VEGETATION = {
   treeBatchCapacity: 640,
-  treeSpacing: 18,
+  treeSpacing: 22,
   nearDistance: 175,
   middleDistance: viewDistance * 0.4,
   farDistance: viewDistance * 0.74,
@@ -31,12 +31,12 @@ export const VEGETATION = {
   grassSpacing: 1.25,
   grassCapacity: 44_000,
   grassRefreshDistance: 70,
-  flowerBatchCapacity: 240,
-  flowerSpacing: 12,
-  flowerDistance: 230,
-  rockBatchCapacity: 180,
-  rockSpacing: 30,
-  rockDistance: viewDistance * 0.48,
+  flowerBatchCapacity: 320,
+  flowerSpacing: 11,
+  flowerDistance: 260,
+  rockBatchCapacity: 240,
+  rockSpacing: 24,
+  rockDistance: viewDistance * 0.5,
 } as const;
 
 export const RENDERING = {

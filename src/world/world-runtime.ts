@@ -71,7 +71,7 @@ export class WorldRuntime {
     this.controls = new FlightControls(this.camera, this.renderer.domElement);
     this.grass = new GrassSystem(this.heightField, hashString(`${WORLD_SEED}:grass`), this.wind.uniforms, assets.grass);
     const variants = createTreeVariants(this.wind.uniforms, hashString(`${WORLD_SEED}:tree-templates`));
-    const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`), variants.length);
+    const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`), variants);
     this.trees = new TreeSystem(variants, forest);
     const groundCoverDistribution = new GroundCoverDistribution(this.heightField, hashString(`${WORLD_SEED}:ground-cover`));
     this.groundCover = new GroundCoverSystem(assets, groundCoverDistribution, this.wind.uniforms);

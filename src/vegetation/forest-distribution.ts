@@ -7,6 +7,12 @@ import { MathUtils } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
 import type { HeightField } from '../terrain/height-field';
+import type { TreeSize, TreeSpecies } from '../trees/tree-templates';
+
+export interface TreeVariantProfile {
+  readonly species: TreeSpecies;
+  readonly size: TreeSize;
+}
 
 export interface TreePlacement {
   readonly x: number;
@@ -24,12 +30,16 @@ export interface TreePlacement {
 
 export class ForestDistribution {
   private readonly cache = new Map<string, TreePlacement[]>();
+  private readonly variantIndices = new Map<string, number>();
 
   public constructor(
     private readonly heightField: HeightField,
     private readonly seed: number,
-    private readonly variantCount: number,
-  ) {}
+    variants: readonly TreeVariantProfile[],
+  ) {
+    if (variants.length === 0) throw new Error('Forest distribution requires tree variants.');
+    variants.forEach((variant, index) => this.variantIndices.set(variantKey(variant.species, variant.size), index));
+  }
 
   public getChunkPlacements(chunkX: number, chunkZ: number): TreePlacement[] {
     const key = `${chunkX}:${chunkZ}`;
@@ -66,7 +76,7 @@ export class ForestDistribution {
     const slope = this.heightField.getSlope(x, z);
     const moisture = this.heightField.getMoisture(x, z, height);
     if (!this.acceptsSite(x, z, height, slope, moisture, cellHash)) return null;
-    return this.buildPlacement(x, z, height, cellHash);
+    return this.buildPlacement(x, z, height, slope, moisture, cellHash);
   }
 
   private getWorldCoordinate(chunk: number, cell: number, hash: number, salt: number): number {
@@ -78,27 +88,57 @@ export class ForestDistribution {
   private acceptsSite(x: number, z: number, height: number, slope: number, moisture: number, hash: number): boolean {
     const cluster = this.heightField.getNoise(x + 240, z - 170, 0.00185, 3) * 0.5 + 0.5;
     const grove = this.heightField.getNoise(x - 90, z + 310, 0.0048, 2) * 0.5 + 0.5;
+    const clearing = MathUtils.smoothstep(this.heightField.getNoise(x + 70, z + 20, 0.009, 2) * 0.5 + 0.5, 0.72, 0.9);
     const altitude = MathUtils.smoothstep(height, -35, 24) * (1 - MathUtils.smoothstep(height, 148, 225));
     const slopeFitness = 1 - MathUtils.smoothstep(slope, 0.38, 1.05);
-    const ecology = cluster * 0.48 + grove * 0.18 + moisture * 0.34;
-    const isolatedChance = unitRandom(hashCoordinates(hash, 11, 29)) > 0.94 ? 0.22 : 0;
-    const probability = Math.max(0, ecology - 0.37) * 2.75 * altitude * slopeFitness + isolatedChance;
+    const forestCore = MathUtils.smoothstep(cluster, 0.46, 0.72) * (0.36 + moisture * 0.48);
+    const forestEdge = MathUtils.smoothstep(grove, 0.58, 0.82) * 0.2;
+    const isolatedChance = unitRandom(hashCoordinates(hash, 11, 29)) > 0.965 ? 0.16 : 0;
+    const probability = (forestCore + forestEdge) * altitude * slopeFitness * (1 - clearing * 0.9) * 2.35 + isolatedChance;
     return unitRandom(hashCoordinates(hash, 7, 13)) < probability;
   }
 
-  private buildPlacement(x: number, z: number, y: number, hash: number): TreePlacement {
+  private buildPlacement(x: number, z: number, y: number, slope: number, moisture: number, hash: number): TreePlacement {
     return {
       x,
       y,
       z,
       rotation: unitRandom(hashCoordinates(hash, 3, 5)) * Math.PI * 2,
-      scale: 0.76 + unitRandom(hashCoordinates(hash, 17, 19)) * 0.46,
-      widthScale: 0.82 + unitRandom(hashCoordinates(hash, 61, 67)) * 0.36,
-      depthScale: 0.84 + unitRandom(hashCoordinates(hash, 71, 73)) * 0.32,
-      variant: hashCoordinates(hash, 23, 31) % this.variantCount,
+      scale: 0.82 + unitRandom(hashCoordinates(hash, 17, 19)) * 0.38,
+      widthScale: 0.9 + unitRandom(hashCoordinates(hash, 61, 67)) * 0.22,
+      depthScale: 0.9 + unitRandom(hashCoordinates(hash, 71, 73)) * 0.2,
+      variant: this.chooseVariant(x, z, y, slope, moisture, hash),
       windPhase: unitRandom(hashCoordinates(hash, 37, 41)) * Math.PI * 2,
       windStrength: 0.72 + unitRandom(hashCoordinates(hash, 43, 47)) * 0.48,
       tint: unitRandom(hashCoordinates(hash, 53, 59)),
     };
   }
+
+  private chooseVariant(x: number, z: number, height: number, slope: number, moisture: number, hash: number): number {
+    const species = this.chooseSpecies(x, z, height, slope, moisture);
+    const size = this.chooseSize(slope, hash);
+    return this.variantIndices.get(variantKey(species, size)) ?? 0;
+  }
+
+  private chooseSpecies(x: number, z: number, height: number, slope: number, moisture: number): TreeSpecies {
+    const biome = this.heightField.getNoise(x - 610, z + 370, 0.00085, 3) * 0.5 + 0.5;
+    const highland = MathUtils.smoothstep(height, 58, 175);
+    const pineAffinity = highland * 0.62 + MathUtils.smoothstep(slope, 0.32, 0.8) * 0.18 + (1 - moisture) * 0.16;
+    if (biome < pineAffinity) return 'pine';
+    const wetland = moisture * 0.68 + biome * 0.32;
+    if (wetland > 0.7) return 'aspen';
+    if (wetland > 0.53) return 'ash';
+    return 'oak';
+  }
+
+  private chooseSize(slope: number, hash: number): TreeSize {
+    const size = unitRandom(hashCoordinates(hash, 23, 31)) + MathUtils.smoothstep(slope, 0.35, 0.85) * 0.18;
+    if (size < 0.26) return 'large';
+    if (size < 0.73) return 'medium';
+    return 'small';
+  }
+}
+
+function variantKey(species: TreeSpecies, size: TreeSize): string {
+  return `${species}:${size}`;
 }
