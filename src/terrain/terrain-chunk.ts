@@ -3,21 +3,15 @@
  * It resamples a continuous HeightField when reassigned and shares its material with all chunks.
  */
 
-import { BufferAttribute, BufferGeometry, Color, DynamicDrawUsage, Mesh, MeshStandardMaterial, PlaneGeometry } from 'three';
+import { BufferAttribute, BufferGeometry, DynamicDrawUsage, Mesh, MeshStandardMaterial, PlaneGeometry } from 'three';
 import { TERRAIN } from '../config';
 import type { HeightField } from './height-field';
-
-const LOWLAND = new Color('#5d7847');
-const HIGHLAND = new Color('#73785c');
-const ROCK = new Color('#77766f');
-const DRY_GRASS = new Color('#8d8b58');
 
 export class TerrainChunk {
   public readonly mesh: Mesh<BufferGeometry, MeshStandardMaterial>;
   private readonly positions: BufferAttribute;
   private readonly normals: BufferAttribute;
-  private readonly colors: BufferAttribute;
-  private readonly color = new Color();
+  private readonly groundCover: BufferAttribute;
 
   public constructor(private readonly heightField: HeightField, material: MeshStandardMaterial) {
     const geometry = new PlaneGeometry(TERRAIN.chunkSize, TERRAIN.chunkSize, TERRAIN.segments, TERRAIN.segments);
@@ -26,8 +20,8 @@ export class TerrainChunk {
     this.normals = geometry.getAttribute('normal') as BufferAttribute;
     this.positions.setUsage(DynamicDrawUsage);
     this.normals.setUsage(DynamicDrawUsage);
-    this.colors = new BufferAttribute(new Float32Array(this.positions.count * 3), 3).setUsage(DynamicDrawUsage);
-    geometry.setAttribute('color', this.colors);
+    this.groundCover = new BufferAttribute(new Float32Array(this.positions.count), 1).setUsage(DynamicDrawUsage);
+    geometry.setAttribute('aGroundCover', this.groundCover);
     this.mesh = new Mesh(geometry, material);
     this.mesh.receiveShadow = true;
   }
@@ -47,7 +41,7 @@ export class TerrainChunk {
     }
     this.positions.needsUpdate = true;
     this.normals.needsUpdate = true;
-    this.colors.needsUpdate = true;
+    this.groundCover.needsUpdate = true;
     this.mesh.geometry.computeBoundingSphere();
   }
 
@@ -59,16 +53,9 @@ export class TerrainChunk {
     const dx = this.heightField.getHeight(worldX + step, worldZ) - this.heightField.getHeight(worldX - step, worldZ);
     const dz = this.heightField.getHeight(worldX, worldZ + step) - this.heightField.getHeight(worldX, worldZ - step);
     const inverseLength = 1 / Math.hypot(dx, step * 2, dz);
+    const moisture = this.heightField.getMoisture(worldX, worldZ, height);
     this.positions.setY(index, height);
     this.normals.setXYZ(index, -dx * inverseLength, step * 2 * inverseLength, -dz * inverseLength);
-    this.writeColor(index, height, Math.hypot(dx, dz) / (step * 2), this.heightField.getMoisture(worldX, worldZ, height));
-  }
-
-  private writeColor(index: number, height: number, slope: number, moisture: number): void {
-    const elevation = Math.min(Math.max((height - 30) / 165, 0), 1);
-    const rockMix = Math.min(Math.max((slope - 0.42) / 0.7, 0), 1);
-    this.color.copy(DRY_GRASS).lerp(LOWLAND, moisture * 0.78).lerp(HIGHLAND, elevation * 0.62);
-    this.color.lerp(ROCK, rockMix * (0.4 + elevation * 0.6));
-    this.colors.setXYZ(index, this.color.r, this.color.g, this.color.b);
+    this.groundCover.setX(index, this.heightField.getGroundCover(worldX, worldZ, moisture));
   }
 }

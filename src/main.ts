@@ -4,6 +4,7 @@
  */
 
 import './styles.css';
+import { loadLandscapeAssets } from './assets/landscape-assets';
 import { WorldRuntime } from './world/world-runtime';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -32,7 +33,8 @@ if (!world || !diagnostics) {
 }
 
 try {
-  const runtime = new WorldRuntime(world, diagnostics);
+  const assets = await loadLandscapeAssets();
+  const runtime = new WorldRuntime(world, diagnostics, assets);
   runtime.start();
   window.addEventListener('pagehide', () => runtime.dispose(), { once: true });
 } catch (error) {

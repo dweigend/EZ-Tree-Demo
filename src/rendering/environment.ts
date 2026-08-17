@@ -22,7 +22,7 @@ import { RENDERING } from '../config';
 export class Environment {
   private readonly group = new Group();
   private readonly sky = new Sky();
-  private readonly sun = new DirectionalLight('#fff1d2', 2.7);
+  private readonly sun = new DirectionalLight('#fff1d2', 3.4);
   private readonly target = new Object3D();
   private readonly sunDirection: Vector3;
 
@@ -31,8 +31,8 @@ export class Environment {
     this.configureSky();
     this.configureSun();
     this.group.add(this.sky, this.sun, this.target);
-    this.group.add(new HemisphereLight('#dcebf0', '#43513a', 1.28));
-    this.group.add(new AmbientLight('#b7c6be', 0.24));
+    this.group.add(new HemisphereLight('#dcebf0', '#43513a', 1.55));
+    this.group.add(new AmbientLight('#b7c6be', 0.32));
     scene.background = new Color('#a9bec0');
     scene.add(this.group);
   }

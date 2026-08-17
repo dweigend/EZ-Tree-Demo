@@ -18,15 +18,14 @@ export const VEGETATION = {
   nearDistance: 175,
   middleDistance: 460,
   farDistance: 900,
-  grassRadius: 235,
-  grassSpacing: 3.05,
-  grassCapacity: 30_000,
+  grassRadius: 250,
+  grassSpacing: 2.75,
+  grassCapacity: 34_000,
   grassRefreshDistance: 70,
 } as const;
 
 export const RENDERING = {
-  fogNear: 300,
-  fogFar: 900,
+  fogDensity: 0.00125,
   cameraFar: 1_400,
   pixelRatioCap: 1.5,
   shadowDistance: 170,

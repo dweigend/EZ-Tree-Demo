@@ -3,7 +3,8 @@
  * Coordinates input, streaming, vegetation, atmosphere, diagnostics, and rendering without hiding subsystem lifecycles.
  */
 
-import { Clock, Fog, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
+import { Clock, FogExp2, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
+import { disposeLandscapeAssets, type LandscapeAssets } from '../assets/landscape-assets';
 import { RENDERING, WORLD_SEED } from '../config';
 import { FlightControls } from '../controls/flight-controls';
 import { hashString } from '../core/random';
@@ -39,7 +40,7 @@ export class WorldRuntime {
   private readonly clock = new Clock();
   private readonly heightField = new HeightField(WORLD_SEED);
   private readonly wind = new WindField();
-  private readonly terrain = new TerrainSystem(this.heightField);
+  private readonly terrain: TerrainSystem;
   private readonly environment = new Environment(this.scene);
   private readonly controls: FlightControls;
   private readonly grass: GrassSystem;
@@ -49,12 +50,17 @@ export class WorldRuntime {
   private peakFrameTime = 0;
   private lastDiagnosticsUpdate = Number.NEGATIVE_INFINITY;
 
-  public constructor(mount: HTMLElement, private readonly diagnosticsElement: HTMLElement) {
-    this.scene.fog = new Fog('#a9bec0', RENDERING.fogNear, RENDERING.fogFar);
+  public constructor(
+    mount: HTMLElement,
+    private readonly diagnosticsElement: HTMLElement,
+    private readonly assets: LandscapeAssets,
+  ) {
+    this.scene.fog = new FogExp2('#b8c8c0', RENDERING.fogDensity);
     this.positionCamera();
     mount.append(this.renderer.domElement);
+    this.terrain = new TerrainSystem(this.heightField, assets.ground);
     this.controls = new FlightControls(this.camera, this.renderer.domElement);
-    this.grass = new GrassSystem(this.heightField, hashString(`${WORLD_SEED}:grass`), this.wind.uniforms);
+    this.grass = new GrassSystem(this.heightField, hashString(`${WORLD_SEED}:grass`), this.wind.uniforms, assets.grass);
     const variants = createTreeVariants(this.wind.uniforms);
     const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`), variants.length);
     this.trees = new TreeSystem(variants, forest);
@@ -81,6 +87,7 @@ export class WorldRuntime {
     this.trees.dispose();
     this.grass.dispose();
     this.environment.dispose();
+    disposeLandscapeAssets(this.assets);
     this.renderer.dispose();
     this.renderer.domElement.remove();
     delete window.__LANDSCAPE_DIAGNOSTICS__;

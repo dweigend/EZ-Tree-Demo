@@ -7,15 +7,16 @@ import {
   Color,
   DoubleSide,
   DynamicDrawUsage,
+  BufferGeometry,
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
   MeshStandardMaterial,
-  PlaneGeometry,
   Quaternion,
   Vector3,
 } from 'three';
 import { VEGETATION } from '../config';
+import type { InstancedModelAsset } from '../assets/landscape-assets';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
 import type { HeightField } from '../terrain/height-field';
 import type { WindUniforms } from '../wind/wind-field';
@@ -37,7 +38,7 @@ interface GrassBuildJob {
 }
 
 export class GrassSystem {
-  public readonly mesh: InstancedMesh<PlaneGeometry, MeshStandardMaterial>;
+  public readonly mesh: InstancedMesh<BufferGeometry, MeshStandardMaterial>;
   public visibleBladeCount = 0;
   private readonly rotation: InstancedBufferAttribute;
   private readonly phase: InstancedBufferAttribute;
@@ -53,9 +54,9 @@ export class GrassSystem {
     private readonly heightField: HeightField,
     private readonly seed: number,
     wind: WindUniforms,
+    asset: InstancedModelAsset,
   ) {
-    const geometry = new PlaneGeometry(0.16, 1.15, 1, 3);
-    geometry.translate(0, 0.575, 0);
+    const geometry = asset.geometry.clone();
     this.rotation = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
     this.phase = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
     this.strength = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
@@ -65,9 +66,12 @@ export class GrassSystem {
     geometry.setAttribute('aRotation', this.rotation);
     geometry.setAttribute('aWindPhase', this.phase);
     geometry.setAttribute('aWindStrength', this.strength);
-    this.mesh = new InstancedMesh(geometry, createGrassMaterial(wind), VEGETATION.grassCapacity);
+    const sourceMaterial = asset.materials[0];
+    if (!sourceMaterial) throw new Error('Grass asset has no material.');
+    this.mesh = new InstancedMesh(geometry, createGrassMaterial(sourceMaterial, wind), VEGETATION.grassCapacity);
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.mesh.count = 0;
+    this.mesh.receiveShadow = true;
   }
 
   public update(cameraPosition: Vector3): void {
@@ -135,17 +139,16 @@ export class GrassSystem {
     if (distance > VEGETATION.grassRadius) return null;
     const height = this.heightField.getHeight(x, z);
     if (height > 205 || height < -38 || this.heightField.getSlope(x, z) > 0.82) return null;
-    const meadow = this.heightField.getNoise(x - 210, z + 80, 0.0052, 2) * 0.5 + 0.5;
     const distanceRatio = distance / VEGETATION.grassRadius;
     const distanceKeep = distanceRatio < 0.62 ? 1 : Math.max(0.08, 1 - (distanceRatio - 0.62) / 0.38);
     const moisture = this.heightField.getMoisture(x, z, height);
-    const ecology = 0.32 + meadow * 0.34 + moisture * 0.34;
+    const ecology = 0.12 + this.heightField.getGroundCover(x, z, moisture) * 0.88;
     return unitRandom(hashCoordinates(hash, 17, 19)) < ecology * distanceKeep ? height : null;
   }
 
   private writeBlade(index: number, x: number, z: number, y: number, hash: number): void {
-    const height = 0.68 + unitRandom(hashCoordinates(hash, 23, 29)) * 0.84;
-    const width = 0.72 + unitRandom(hashCoordinates(hash, 31, 37)) * 0.5;
+    const height = 0.38 + unitRandom(hashCoordinates(hash, 23, 29)) * 0.4;
+    const width = 0.28 + unitRandom(hashCoordinates(hash, 31, 37)) * 0.16;
     this.position.set(x, y - 0.03, z);
     this.scale.set(width, height, width);
     this.transform.compose(this.position, IDENTITY_ROTATION, this.scale);
@@ -168,8 +171,18 @@ export class GrassSystem {
   }
 }
 
-function createGrassMaterial(wind: WindUniforms): MeshStandardMaterial {
-  const material = new MeshStandardMaterial({ color: '#91a465', roughness: 0.92, side: DoubleSide, vertexColors: true });
+function createGrassMaterial(source: MeshStandardMaterial, wind: WindUniforms): MeshStandardMaterial {
+  const material = new MeshStandardMaterial({
+    map: source.map,
+    color: '#9eae75',
+    emissive: '#203819',
+    emissiveIntensity: 0.04,
+    alphaTest: 0.45,
+    roughness: 1,
+    metalness: 0,
+    side: DoubleSide,
+    vertexColors: true,
+  });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = wind.time;
     shader.uniforms.uGlobalWindDirection = wind.direction;

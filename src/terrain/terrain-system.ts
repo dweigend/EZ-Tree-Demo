@@ -3,10 +3,12 @@
  * Reuses chunk meshes around the camera so world growth never allocates during flight.
  */
 
-import { Group, MeshStandardMaterial, Vector3 } from 'three';
+import { Group, Vector3 } from 'three';
+import type { GroundTextureAssets } from '../assets/landscape-assets';
 import { TERRAIN } from '../config';
 import type { HeightField } from './height-field';
 import { TerrainChunk } from './terrain-chunk';
+import { createTerrainMaterial } from './terrain-material';
 
 export class TerrainSystem {
   public readonly group = new Group();
@@ -22,8 +24,8 @@ export class TerrainSystem {
   private centerX = Number.NaN;
   private centerZ = Number.NaN;
 
-  public constructor(heightField: HeightField) {
-    const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 });
+  public constructor(heightField: HeightField, textures: GroundTextureAssets) {
+    const material = createTerrainMaterial(textures);
     const diameter = TERRAIN.chunkRadius * 2 + 1;
     for (let index = 0; index < diameter * diameter; index += 1) {
       const chunk = new TerrainChunk(heightField, material);

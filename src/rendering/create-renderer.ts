@@ -3,7 +3,7 @@
  * It rejects WebGL1 explicitly and keeps device-pixel cost bounded for stable desktop performance.
  */
 
-import { ACESFilmicToneMapping, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderer } from 'three';
+import { NeutralToneMapping, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderer } from 'three';
 import { RENDERING } from '../config';
 
 export function createRenderer(): WebGLRenderer {
@@ -13,8 +13,8 @@ export function createRenderer(): WebGLRenderer {
     powerPreference: 'high-performance',
   });
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1;
+  renderer.toneMapping = NeutralToneMapping;
+  renderer.toneMappingExposure = 1.25;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDERING.pixelRatioCap));

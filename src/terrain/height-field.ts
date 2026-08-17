@@ -47,6 +47,11 @@ export class HeightField {
     return MathUtils.clamp(broad * 0.72 + drainage * 0.28, 0, 1);
   }
 
+  public getGroundCover(x: number, z: number, moisture: number): number {
+    const meadow = this.fbm((x - 210) * 0.0052, (z + 80) * 0.0052, 2) * 0.5 + 0.5;
+    return MathUtils.clamp(meadow * 0.66 + moisture * 0.34, 0, 1);
+  }
+
   public getNoise(x: number, z: number, scale: number, octaves = 3): number {
     return this.fbm(x * scale, z * scale, octaves);
   }
