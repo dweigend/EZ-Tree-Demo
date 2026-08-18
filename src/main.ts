@@ -35,7 +35,7 @@ if (!world || !diagnostics) {
 try {
   const assets = await loadLandscapeAssets();
   const runtime = new WorldRuntime(world, diagnostics, assets);
-  runtime.start();
+  await runtime.start();
   window.addEventListener('pagehide', () => runtime.dispose(), { once: true });
 } catch (error) {
   const message = error instanceof Error ? error.message : 'Unknown startup error';

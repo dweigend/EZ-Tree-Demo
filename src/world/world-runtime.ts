@@ -58,6 +58,7 @@ export class WorldRuntime {
   private readonly viewDirection = new Vector3();
   private readonly vegetationDirection = new Vector3();
   private groundCoverRefreshPending = false;
+  private backgroundStep = 0;
   private averageFrameTime = 16.7;
   private peakFrameTime = 0;
   private lastDiagnosticsUpdate = Number.NEGATIVE_INFINITY;
@@ -85,7 +86,7 @@ export class WorldRuntime {
     window.addEventListener('resize', this.resize);
   }
 
-  public start(): void {
+  public async start(): Promise<void> {
     this.camera.getWorldDirection(this.viewDirection);
     this.terrain.update(this.camera.position, this.viewDirection);
     this.trees.rebuild(this.camera.position, this.viewDirection);
@@ -93,6 +94,7 @@ export class WorldRuntime {
     this.groundCover.rebuild(this.camera.position, this.viewDirection);
     this.vegetationDirection.copy(this.viewDirection);
     this.environment.update(this.camera);
+    await this.renderer.compileAsync(this.scene, this.camera);
     this.clock.start();
     this.renderer.setAnimationLoop(this.renderFrame);
   }
@@ -118,11 +120,9 @@ export class WorldRuntime {
     const elapsedSeconds = this.clock.elapsedTime;
     this.controls.update(simulationDeltaSeconds);
     this.camera.getWorldDirection(this.viewDirection);
-    this.trees.prepareStreaming(this.camera.position, this.viewDirection);
-    this.groundCover.prepareStreaming(this.camera.position, this.viewDirection);
     const terrainChanged = this.terrain.update(this.camera.position, this.viewDirection);
     const vegetationRefreshed = this.refreshVegetation(terrainChanged);
-    if (!terrainChanged && !vegetationRefreshed) this.terrain.processStreaming();
+    if (!terrainChanged && !vegetationRefreshed) this.processBackgroundStep();
     this.grass.update(this.camera.position);
     this.wind.update(elapsedSeconds);
     this.environment.update(this.camera);
@@ -163,6 +163,13 @@ export class WorldRuntime {
     if (currentLength === 0 || previousLength === 0) return false;
     const dot = this.viewDirection.x * this.vegetationDirection.x + this.viewDirection.z * this.vegetationDirection.z;
     return dot / (currentLength * previousLength) < 0.5;
+  }
+
+  private processBackgroundStep(): void {
+    if (this.backgroundStep === 0) this.trees.prepareStreaming(this.camera.position, this.viewDirection);
+    if (this.backgroundStep === 1) this.groundCover.prepareStreaming(this.camera.position, this.viewDirection);
+    if (this.backgroundStep === 2) this.terrain.processStreaming();
+    this.backgroundStep = (this.backgroundStep + 1) % 3;
   }
 
   private updateDiagnostics(deltaSeconds: number, elapsedSeconds: number): void {
