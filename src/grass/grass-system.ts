@@ -27,7 +27,7 @@ import { createGrassMaterial, prepareGrassGeometry } from './grass-material';
 const GRASS_DARK = new Color('#b1c08d');
 const GRASS_LIGHT = new Color('#ded39a');
 const IDENTITY_ROTATION = new Quaternion();
-const GRASS_CANDIDATES_PER_FRAME = 800;
+const GRASS_CANDIDATES_PER_FRAME = 400;
 
 interface GrassBuildJob {
   readonly target: Vector3;
@@ -126,8 +126,8 @@ export class GrassSystem {
 
   private tryAddBlade(cellX: number, cellZ: number, cameraPosition: Vector3, index: number): boolean {
     const hash = hashCoordinates(this.seed, cellX, cellZ);
-    const worldX = (cellX + signedRandom(hashCoordinates(hash, 3, 7)) * VEGETATION.jitterRatio) * VEGETATION.grassSpacing;
-    const worldZ = (cellZ + signedRandom(hashCoordinates(hash, 11, 13)) * VEGETATION.jitterRatio) * VEGETATION.grassSpacing;
+    const worldX = (cellX + signedRandom(hashCoordinates(hash, 3, 7)) * VEGETATION.grassJitterRatio) * VEGETATION.grassSpacing;
+    const worldZ = (cellZ + signedRandom(hashCoordinates(hash, 11, 13)) * VEGETATION.grassJitterRatio) * VEGETATION.grassSpacing;
     const distance = Math.hypot(worldX - cameraPosition.x, worldZ - cameraPosition.z);
     const height = this.getAcceptedHeight(worldX, worldZ, distance, hash);
     if (height === null) return false;

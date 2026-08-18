@@ -6,7 +6,7 @@ Die Landschaft priorisiert stabile Framezeiten vor maximaler Objektdichte. Die M
 
 - Terrain: 49 recycelte Chunks bei der Standardsichtweite
 - Vegetationsdetail: 31 blickrichtungsgewichtete Chunks mit vollem 3×3-Sicherheitskern
-- Rendering: globale Instancing-Batches, drei einmalig erzeugte EZ-Tree-Templates, drei harte Baum-LOD-Bänder, ein Gras-Batch und sechs Ground-Cover-Batches
+- Rendering: globale Instancing-Batches, drei einmalig erzeugte EZ-Tree-Templates, gemeinsame Mittel-/Fern-LODs, ein Gras-Batch und sechs Ground-Cover-Batches
 - Streaming: Baum-Rebuild, Ground-Cover-Rebuild und Terrain-Resample werden auf getrennte Frames verteilt
 - Buffer: dynamische Instanzattribute laden nur den tatsächlich belegten Präfix über die Three.js-Update-Ranges hoch
 - Sichtkanten: Distanz-Ausdünnung, harte LOD-Bänder und abgestimmter Fog statt doppelter Instanzen in Kreuzblenden
@@ -29,38 +29,31 @@ Ein selektiver Blur außerhalb des Blickfelds ist bewusst nicht vorgesehen: Der 
 
 ## Verifizierter Stand vom 18. August 2026
 
-Desktop Chromium, 1280×720, Profil `desktop`, deterministischer Flug mit 220 m/s nach Reset des
-Frame-Recorders:
+Desktop Chrome, 1280×720, Profil `desktop`, deterministischer Flug mit 220 m/s. Drei Wiederholungen
+lieferten jeweils 120 FPS; der finale Kontrolllauf lag bei p50 8,3 ms, p95 9,1 ms und p99 9,3 ms.
+Es gab keinen Frame über 16,7 ms. Am Routenende lagen 802 Bäume bei 28 Draw Calls und 0,68 M Dreiecken.
 
-| Metric | Ergebnis |
-|---|---:|
-| Samples | 1.414 |
-| p50 | 8,3 ms |
-| p95 | 10,3 ms |
-| p99 | 12,7 ms |
-| Maximum | 18,7 ms |
-| Frames über 16,7 ms | 1 von 1.414 (0,071 %) |
-| Draw Calls am Routenende | 44 |
-| Dreiecke am Routenende | 1,70 M |
-| Sichtbare Bäume am Routenende | 495 |
-| Gras / Blumen / Steine am Routenende | 45.659 / 576 / 576 |
+Der statische Startbereich enthält nach Warm-up 655 Bäume, 57.775 Grashalme, 1.418 Blumen und 682
+Steine bei 37 Draw Calls und 1,99 M Dreiecken. Gegenüber dem vorherigen Stand steigt die sichtbare
+Baummenge trotz kürzerem Fern-LOD um 28 %. Die lokale Dichte steigt bei Gras um 83 %, bei Blumen um
+42 % und bei Steinen um 52 %, weil die zuvor vergrößerten Render-Radien zurückgenommen wurden.
 
-Der statische Startbereich enthält nach Warm-up 513 Bäume, 41.691 Grashalme, 1.511 Blumen und
-586 Steine bei 53 Draw Calls und 3,53 M Dreiecken. Gegenüber dem vorherigen dichten Checkpoint sind das
-etwa 15 % mehr Bäume, 174 % mehr Gras, 472 % mehr Blumen und 186 % mehr Steine.
-
-Das PICO-Profil rendert im Desktop-Browser denselben Startbereich mit 25 Terrain-Chunks, 182 Bäumen,
-14.284 Grashalmen, 841 Blumen und 203 Steinen bei 44 Calls und 1,45 M Dreiecken. Diese Werte prüfen
+Das PICO-Profil rendert im Desktop-Browser denselben Startbereich mit 214 Bäumen, 20.411 Grashalmen,
+714 Blumen und 186 Steinen bei 28 Calls und 0,70 M Dreiecken. Die lokale Dichte steigt gegenüber dem
+vorherigen Profil bei Gras um 109 %, bei Blumen um 46 % und bei Steinen um 35 %. Diese Werte prüfen
 Profilbudgets, sind aber kein Ersatz für eine XR-Session auf dem Headset.
 
-### Ermittelte Dichteobergrenze
+### Renderstrategie
 
-Die finale Konfiguration nutzt ein 18-m-Baumraster, den Waldwahrscheinlichkeitsfaktor 1,5 und Äste nur
-im Nah-LOD. Drei automatisierte Wiederholungsläufe blieben innerhalb des Browserbudgets. Das dichtere
-17-m-Raster erreichte dagegen p99 bis 13,7 ms und zwei Frames über 16,7 ms; die extreme Stressstufe mit
-14-m-Raster erreichte entlang der Route 1.350 Bäume, kippte aber auf p99 17,3 ms, 1,41 % Frames über
-16,7 ms und 18 aufeinanderfolgende Misses. Beide wurden deshalb verworfen. Die Ground-Cover-Erhöhung
-allein blieb bei p99 10,4 ms und war nicht die Ursache der Streaming-Spikes.
+- Mittel- und Fernbäume teilen pro LOD eine Geometrie und werden nur im vorderen Sicht-Halbraum aufgebaut.
+- Jeder Baum rendert einen Stamm. Mittel-/Fernstämme nutzen einen 4- bis 5-seitigen Distanzstamm statt
+  des kompletten Astnetzes.
+- Blumen- und Steingeometrien werden einmal beim Start auf 28 % beziehungsweise 22 % der Vertices
+  reduziert. Distribution, Varianten und lizenzierte Ausgangsassets bleiben unverändert.
+- Gras nutzt weiterhin einen Draw Call. 90 % Zell-Jitter entfernt sichtbare Rasterlinien; 400 Kandidaten
+  pro Frame begrenzen CPU-Spitzen während des Neuaufbaus.
+- Vegetation wird nach einer Richtungsänderung von etwa 20 Grad neu aufgebaut. So bleibt die
+  richtungsgewichtete Auswahl bei interaktivem Flug korrekt, ohne per-frame Objekt-Culling einzuführen.
 
 ### Physische PICO-4-Freigabe
 
@@ -69,7 +62,7 @@ allein blieb bei p99 10,4 ms und war nicht die Ursache der Streaming-Spikes.
    `xr.targetRequestSucceeded === true` stehen.
 3. Nach 60 Sekunden Warm-up den Recorder zurücksetzen und zehn Minuten mit Kopfbewegungen laufen lassen.
 4. Akzeptanz: p99 höchstens 12 ms, höchstens 0,1 % Frames über 16,7 ms, keine drei Misses in Folge,
-   höchstens 55 Calls, höchstens 1,6 M Dreiecke und bis zum Ende bestätigte 90 Hz. Der Dreiecksdeckel
+   höchstens 40 Calls, höchstens 0,8 M Dreiecke und bis zum Ende bestätigte 90 Hz. Der Dreiecksdeckel
    ist ein Profilbudget; die 90-Hz- und Framezeit-Grenzen entscheiden auf dem Headset.
 5. Parallel einen Perfetto-Trace für einen Waldkern und mehrere schnelle Chunk-Wechsel aufzeichnen.
 6. Zehnmal VR betreten und verlassen; es dürfen keine Shader-, Naht-, Atlas- oder Lifecycle-Fehler auftreten.

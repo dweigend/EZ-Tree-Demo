@@ -1,6 +1,6 @@
 /**
- * Fixed-capacity instanced tree renderer with preset-based EZ-Tree variants and three distance bands.
- * Rebuilds batch data only when terrain streaming advances; no Object3D is created per tree.
+ * Fixed-capacity instanced tree renderer with shared distance LODs and view-weighted placement.
+ * Rebuilds only with terrain streaming; no Object3D or visibility test is created per tree per frame.
  */
 
 import { Color, DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Matrix4, Object3D, Quaternion, Vector3 } from 'three';
@@ -16,12 +16,17 @@ interface TreeBatch {
   readonly leaves: InstancedMesh;
   readonly phase: InstancedBufferAttribute;
   readonly strength: InstancedBufferAttribute;
-  readonly rendersBranches: boolean;
   count: number;
 }
 
+interface TreeRenderWindow {
+  readonly position: Vector3;
+  readonly direction: HorizontalDirection;
+}
+
 const LODS: readonly TreeLod[] = ['near', 'middle', 'far'];
-const SHARED_FAR_VARIANT_INDEX = 0;
+const SHARED_DISTANCE_VARIANT_INDEX = 1;
+const VIEW_CONE_COSINE = 0;
 const LEAF_COLORS: Readonly<Record<TreeSpecies, readonly [Color, Color]>> = {
   aspen: [new Color('#c9dcaa'), new Color('#eff0b4')],
   oak: [new Color('#bed09b'), new Color('#e1d39d')],
@@ -79,24 +84,40 @@ export class TreeSystem {
     const centerX = getChunkIndex(cameraPosition.x);
     const centerZ = getChunkIndex(cameraPosition.z);
     const coordinates = getChunkViewWindow(centerX, centerZ, TERRAIN.chunkRadius, viewDirection);
+    const renderWindow = { position: cameraPosition, direction: viewDirection } satisfies TreeRenderWindow;
     this.activeChunkCount = coordinates.length;
     for (const coordinate of coordinates) {
       const placements = this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
-      for (const placement of placements) this.addPlacement(placement, cameraPosition);
+      for (const placement of placements) this.addPlacement(placement, renderWindow);
     }
   }
 
-  private addPlacement(placement: TreePlacement, cameraPosition: Vector3): void {
+  private addPlacement(placement: TreePlacement, renderWindow: TreeRenderWindow): void {
     if (!acceptsTreeDensity(placement.densityRank, VEGETATION.treeDensity)) return;
-    const distance = Math.hypot(placement.x - cameraPosition.x, placement.z - cameraPosition.z);
+    const distance = Math.hypot(placement.x - renderWindow.position.x, placement.z - renderWindow.position.z);
+    if (!this.isInRenderWindow(placement, renderWindow, distance)) return;
     const variant = this.variants[placement.variant];
     const lodIndex = this.getLodIndex(distance);
-    const batchIndex = lodIndex === 2 ? SHARED_FAR_VARIANT_INDEX : placement.variant;
+    const batchIndex = lodIndex === 0 ? placement.variant : SHARED_DISTANCE_VARIANT_INDEX;
     const batch = lodIndex === null ? undefined : this.batches[batchIndex]?.[lodIndex];
     if (!variant || !batch || batch.count >= VEGETATION.treeBatchCapacity) return;
     this.writeInstance(batch, variant, placement);
     batch.count += 1;
     this.visibleTreeCount += 1;
+  }
+
+  private isInRenderWindow(
+    placement: TreePlacement,
+    renderWindow: TreeRenderWindow,
+    distance: number,
+  ): boolean {
+    if (distance < VEGETATION.nearDistance) return true;
+    const { direction, position } = renderWindow;
+    const directionLength = Math.hypot(direction.x, direction.z);
+    if (directionLength === 0 || distance === 0) return true;
+    const x = placement.x - position.x;
+    const z = placement.z - position.z;
+    return (x * direction.x + z * direction.z) / (distance * directionLength) >= VIEW_CONE_COSINE;
   }
 
   private writeInstance(batch: TreeBatch, variant: TreeVariant, placement: TreePlacement): void {
@@ -106,7 +127,7 @@ export class TreeSystem {
     this.rotation.setFromAxisAngle(Object3D.DEFAULT_UP, placement.rotation);
     this.scale.set(worldHeight * placement.widthScale, worldHeight, worldHeight * placement.depthScale);
     this.transform.compose(this.position, this.rotation, this.scale);
-    if (batch.rendersBranches) batch.branches.setMatrixAt(index, this.transform);
+    batch.branches.setMatrixAt(index, this.transform);
     batch.leaves.setMatrixAt(index, this.transform);
     batch.phase.setX(index, placement.windPhase);
     batch.strength.setX(index, placement.windStrength);
@@ -133,13 +154,12 @@ export class TreeSystem {
     const leaves = this.createInstancedMesh(geometry.leaves, variant.leafMaterial);
     const phase = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
     const strength = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
-    const rendersBranches = lod === 'near';
     leaves.geometry.setAttribute('aWindPhase', phase);
     leaves.geometry.setAttribute('aWindStrength', strength);
     branches.castShadow = lod === 'near';
     leaves.castShadow = VEGETATION.leafShadows && lod === 'near';
     this.group.add(branches, leaves);
-    return { branches, leaves, phase, strength, rendersBranches, count: 0 };
+    return { branches, leaves, phase, strength, count: 0 };
   }
 
   private createInstancedMesh(geometry: TreeGeometryPair['branches'], material: TreeVariant['branchMaterial']): InstancedMesh {
@@ -157,7 +177,7 @@ export class TreeSystem {
   private finaliseBatches(): void {
     for (const batches of this.batches) {
       for (const batch of batches) {
-        finaliseInstancedMesh(batch.branches, batch.rendersBranches ? batch.count : 0);
+        finaliseInstancedMesh(batch.branches, batch.count);
         finaliseInstancedMesh(batch.leaves, batch.count, batch.phase, batch.strength);
       }
     }

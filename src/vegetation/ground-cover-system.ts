@@ -15,6 +15,7 @@ import {
   Quaternion,
   Vector3,
 } from 'three';
+import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import type { InstancedModelAsset, LandscapeAssets } from '../assets/landscape-assets';
 import { TERRAIN, VEGETATION } from '../config';
 import { createDynamicScalarAttribute, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
@@ -134,20 +135,21 @@ export class GroundCoverSystem {
   }
 
   private createFlowerBatch(asset: InstancedModelAsset, wind: WindUniforms): GroundCoverBatch {
-    const geometry = asset.geometry.clone();
+    const geometry = createLowPolyGeometry(asset.geometry, 0.28);
     const phase = createDynamicScalarAttribute(VEGETATION.flowerBatchCapacity);
     const strength = createDynamicScalarAttribute(VEGETATION.flowerBatchCapacity);
     geometry.setAttribute('aWindPhase', phase);
     geometry.setAttribute('aWindStrength', strength);
-    const materials = asset.materials.map((material) => createFlowerMaterial(material, wind));
-    const mesh = this.createMesh(geometry, materials, VEGETATION.flowerBatchCapacity);
+    const sourceMaterial = asset.materials[1] ?? asset.materials[0];
+    if (!sourceMaterial) throw new Error('Flower asset has no material.');
+    const mesh = this.createMesh(geometry, [createFlowerMaterial(sourceMaterial, wind)], VEGETATION.flowerBatchCapacity);
     this.group.add(mesh);
     return { mesh, phase, strength, count: 0 };
   }
 
   private createRockBatch(asset: InstancedModelAsset): GroundCoverBatch {
     const materials = asset.materials.map(createRockMaterial);
-    const mesh = this.createMesh(asset.geometry.clone(), materials, VEGETATION.rockBatchCapacity);
+    const mesh = this.createMesh(createLowPolyGeometry(asset.geometry, 0.22), materials, VEGETATION.rockBatchCapacity);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.group.add(mesh);
@@ -178,5 +180,15 @@ export class GroundCoverSystem {
 
   private horizontalDistance(placement: { readonly x: number; readonly z: number }, cameraPosition: Vector3): number {
     return Math.hypot(placement.x - cameraPosition.x, placement.z - cameraPosition.z);
+  }
+}
+
+function createLowPolyGeometry(source: BufferGeometry, retainedFraction: number): BufferGeometry {
+  const vertexCount = source.getAttribute('position').count;
+  const removeCount = Math.floor(vertexCount * (1 - retainedFraction));
+  try {
+    return new SimplifyModifier().modify(source, removeCount);
+  } catch {
+    return source.clone();
   }
 }

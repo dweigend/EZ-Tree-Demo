@@ -20,10 +20,10 @@ describe('forest density ranking', () => {
   });
 
   test('PICO density is a strict subset of desktop density', () => {
-    const ranks = [0.1, 0.65, 0.74, 0.741, 0.9];
+    const ranks = [0.1, 0.74, 0.85, 0.851, 0.9];
     const desktop = ranks.filter((rank) => acceptsTreeDensity(rank, 1));
-    const pico = ranks.filter((rank) => acceptsTreeDensity(rank, 0.74));
+    const pico = ranks.filter((rank) => acceptsTreeDensity(rank, 0.85));
     expect(desktop).toEqual(ranks);
-    expect(pico).toEqual([0.1, 0.65, 0.74]);
+    expect(pico).toEqual([0.1, 0.74, 0.85]);
   });
 });

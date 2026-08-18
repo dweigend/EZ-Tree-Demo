@@ -4,8 +4,7 @@
  */
 
 import { Tree, TreePreset } from '@dgreenheck/ez-tree';
-import { BufferAttribute, BufferGeometry, Matrix4, MeshPhongMaterial } from 'three';
-import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
+import { BufferAttribute, BufferGeometry, CylinderGeometry, Matrix4, MeshPhongMaterial } from 'three';
 import { hashCoordinates } from '../core/random';
 import type { WindUniforms } from '../wind/wind-field';
 import { createBranchMaterial, createLeafMaterial } from './tree-materials';
@@ -69,9 +68,15 @@ function normalisePair(branchSource: BufferGeometry, leafSource: BufferGeometry)
 function createLods(near: TreeGeometryPair): Readonly<Record<TreeLod, TreeGeometryPair>> {
   return {
     near,
-    middle: { branches: simplify(near.branches, 0.4), leaves: thinLeaves(inflateLeafCards(near.leaves, 1.45), 2) },
-    far: { branches: simplify(near.branches, 0.08), leaves: thinLeaves(inflateLeafCards(near.leaves, 2.1), 5) },
+    middle: { branches: createDistanceTrunk(5), leaves: thinLeaves(inflateLeafCards(near.leaves, 1.9), 10) },
+    far: { branches: createDistanceTrunk(4), leaves: thinLeaves(inflateLeafCards(near.leaves, 2.7), 20) },
   };
+}
+
+function createDistanceTrunk(radialSegments: number): BufferGeometry {
+  const trunk = new CylinderGeometry(0.01, 0.032, 0.65, radialSegments, 1, false);
+  trunk.translate(0, 0.325, 0);
+  return trunk;
 }
 
 function inflateLeafCards(source: BufferGeometry, factor: number): BufferGeometry {
@@ -93,17 +98,6 @@ function inflateLeafCards(source: BufferGeometry, factor: number): BufferGeometr
   positions.needsUpdate = true;
   geometry.computeBoundingSphere();
   return geometry;
-}
-
-function simplify(source: BufferGeometry, retainedFraction: number): BufferGeometry {
-  const vertexCount = source.getAttribute('position').count;
-  const removeCount = Math.max(0, Math.floor(vertexCount * (1 - retainedFraction)));
-  if (removeCount === 0) return source.clone();
-  try {
-    return new SimplifyModifier().modify(source, removeCount);
-  } catch {
-    return source.clone();
-  }
 }
 
 function thinLeaves(source: BufferGeometry, stride: number): BufferGeometry {

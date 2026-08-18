@@ -182,7 +182,7 @@ export class WorldRuntime {
     const previousLength = Math.hypot(this.vegetationDirection.x, this.vegetationDirection.z);
     if (currentLength === 0 || previousLength === 0) return false;
     const dot = this.viewDirection.x * this.vegetationDirection.x + this.viewDirection.z * this.vegetationDirection.z;
-    return dot / (currentLength * previousLength) < 0.5;
+    return dot / (currentLength * previousLength) < 0.94;
   }
 
   private processBackgroundStep(): void {
