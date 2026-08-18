@@ -3,26 +3,11 @@
  * Rebuilds batch data only when terrain streaming advances; no Object3D is created per tree.
  */
 
-import {
-  Color,
-  DynamicDrawUsage,
-  InstancedBufferAttribute,
-  InstancedMesh,
-  Matrix4,
-  Object3D,
-  Quaternion,
-  Vector3,
-} from 'three';
+import { Color, DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Matrix4, Object3D, Quaternion, Vector3 } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
-import { updateAttributePrefix } from '../rendering/update-instanced-attributes';
-import {
-  getChunkRing,
-  getChunkViewWindow,
-  prioritiseChunkDirection,
-  type ChunkCoordinate,
-  type HorizontalDirection,
-} from '../world/chunk-coordinates';
-import type { ForestDistribution, TreePlacement } from '../vegetation/forest-distribution';
+import { createDynamicScalarAttribute, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
+import { ChunkPrefetchQueue, getChunkIndex, getChunkViewWindow, type HorizontalDirection } from '../world/chunk-coordinates';
+import type { ForestDistribution, TreePlacement } from './forest-distribution';
 import type { TreeGeometryPair, TreeLod, TreeVariant } from './tree-factory';
 import type { TreeSpecies } from './tree-templates';
 
@@ -55,11 +40,12 @@ export class TreeSystem {
   private readonly scale = new Vector3();
   private readonly leafColor = new Color();
   private readonly barkColor = new Color();
-  private prefetchCenterX = Number.NaN;
-  private prefetchCenterZ = Number.NaN;
-  private readonly prefetchQueue: ChunkCoordinate[] = [];
+  private readonly prefetchQueue = new ChunkPrefetchQueue(TERRAIN.chunkRadius + 1);
 
-  public constructor(private readonly variants: readonly TreeVariant[], private readonly distribution: ForestDistribution) {
+  public constructor(
+    private readonly variants: readonly TreeVariant[],
+    private readonly distribution: ForestDistribution,
+  ) {
     this.batches = variants.map((variant) => LODS.map((lod) => this.createBatch(variant, lod)));
   }
 
@@ -69,15 +55,8 @@ export class TreeSystem {
     this.finaliseBatches();
   }
 
-  public prepareStreaming(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
-    const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    if (centerX !== this.prefetchCenterX || centerZ !== this.prefetchCenterZ) {
-      this.prefetchCenterX = centerX;
-      this.prefetchCenterZ = centerZ;
-      this.fillPrefetchQueue(centerX, centerZ, viewDirection);
-    }
-    const coordinate = this.prefetchQueue.shift();
+  public prefetchNextChunk(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
+    const coordinate = this.prefetchQueue.next(cameraPosition, viewDirection);
     if (coordinate) this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
   }
 
@@ -96,20 +75,14 @@ export class TreeSystem {
   }
 
   private fillStreamingWindow(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
-    const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+    const centerX = getChunkIndex(cameraPosition.x);
+    const centerZ = getChunkIndex(cameraPosition.z);
     const coordinates = getChunkViewWindow(centerX, centerZ, TERRAIN.chunkRadius, viewDirection);
     this.activeChunkCount = coordinates.length;
     for (const coordinate of coordinates) {
       const placements = this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
       for (const placement of placements) this.addPlacement(placement, cameraPosition);
     }
-  }
-
-  private fillPrefetchQueue(centerX: number, centerZ: number, viewDirection: HorizontalDirection): void {
-    this.prefetchQueue.length = 0;
-    const ring = getChunkRing(centerX, centerZ, TERRAIN.chunkRadius + 1);
-    this.prefetchQueue.push(...prioritiseChunkDirection(ring, centerX, centerZ, viewDirection));
   }
 
   private addPlacement(placement: TreePlacement, cameraPosition: Vector3): void {
@@ -155,10 +128,8 @@ export class TreeSystem {
     const geometry = variant.lods[lod];
     const branches = this.createInstancedMesh(geometry.branches, variant.branchMaterial);
     const leaves = this.createInstancedMesh(geometry.leaves, variant.leafMaterial);
-    const phase = new InstancedBufferAttribute(new Float32Array(VEGETATION.treeBatchCapacity), 1);
-    const strength = new InstancedBufferAttribute(new Float32Array(VEGETATION.treeBatchCapacity), 1);
-    phase.setUsage(DynamicDrawUsage);
-    strength.setUsage(DynamicDrawUsage);
+    const phase = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
+    const strength = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
     leaves.geometry.setAttribute('aWindPhase', phase);
     leaves.geometry.setAttribute('aWindStrength', strength);
     branches.castShadow = lod === 'near';
@@ -181,21 +152,10 @@ export class TreeSystem {
 
   private finaliseBatches(): void {
     for (const batches of this.batches) {
-      for (const batch of batches) this.finaliseBatch(batch);
+      for (const batch of batches) {
+        finaliseInstancedMesh(batch.branches, batch.count);
+        finaliseInstancedMesh(batch.leaves, batch.count, batch.phase, batch.strength);
+      }
     }
-  }
-
-  private finaliseBatch(batch: TreeBatch): void {
-    batch.branches.count = batch.count;
-    batch.leaves.count = batch.count;
-    if (batch.count === 0) return;
-    updateAttributePrefix(batch.branches.instanceMatrix, batch.count);
-    updateAttributePrefix(batch.leaves.instanceMatrix, batch.count);
-    if (batch.branches.instanceColor) updateAttributePrefix(batch.branches.instanceColor, batch.count);
-    if (batch.leaves.instanceColor) updateAttributePrefix(batch.leaves.instanceColor, batch.count);
-    updateAttributePrefix(batch.phase, batch.count);
-    updateAttributePrefix(batch.strength, batch.count);
-    batch.branches.computeBoundingSphere();
-    batch.leaves.computeBoundingSphere();
   }
 }

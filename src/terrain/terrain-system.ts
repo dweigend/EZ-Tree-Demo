@@ -7,12 +7,13 @@ import { Group, Vector3 } from 'three';
 import type { GroundTextureAssets } from '../assets/landscape-assets';
 import { TERRAIN } from '../config';
 import {
+  getChunkIndex,
   getChunkSquare,
   prioritiseChunkDirection,
   type ChunkCoordinate,
   type HorizontalDirection,
 } from '../world/chunk-coordinates';
-import type { HeightField } from './height-field';
+import type { HeightField } from '../core/height-field';
 import { TerrainChunk } from './terrain-chunk';
 import { createTerrainMaterial } from './terrain-material';
 
@@ -43,9 +44,9 @@ export class TerrainSystem {
     }
   }
 
-  public update(position: Vector3, viewDirection: HorizontalDirection): boolean {
-    const nextX = Math.floor((position.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    const nextZ = Math.floor((position.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+  public updateChunkWindow(position: Vector3, viewDirection: HorizontalDirection): boolean {
+    const nextX = getChunkIndex(position.x);
+    const nextZ = getChunkIndex(position.z);
     if (nextX === this.centerX && nextZ === this.centerZ) return false;
     this.centerX = nextX;
     this.centerZ = nextZ;
@@ -57,7 +58,7 @@ export class TerrainSystem {
     return true;
   }
 
-  public processStreaming(): void {
+  public processNextChunk(): void {
     this.processNextAssignment();
   }
 
@@ -76,7 +77,12 @@ export class TerrainSystem {
       const chunk = recycled.pop();
       if (!chunk) throw new Error('Terrain chunk pool exhausted.');
       this.activeChunks.set(key, chunk);
-      this.pendingAssignments.push({ key, chunk, x: coordinates.x, z: coordinates.z });
+      this.pendingAssignments.push({
+        key,
+        chunk,
+        x: coordinates.x,
+        z: coordinates.z,
+      });
     }
   }
 

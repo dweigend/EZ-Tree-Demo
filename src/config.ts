@@ -12,7 +12,6 @@ const relief = readNumberParameter('relief', 1, 0.7, 1.4);
 
 export const LANDSCAPE_VIEW = {
   distance: viewDistance,
-  fogDensity,
   relief,
 } as const;
 
@@ -24,6 +23,8 @@ export const TERRAIN = {
 } as const;
 
 export const VEGETATION = {
+  jitterRatio: 0.42,
+  placementCacheSize: 96,
   treeBatchCapacity: 320,
   treeSpacing: 22,
   nearDistance: 110,

@@ -37,7 +37,8 @@ http://localhost:5173/?distance=900&relief=1.25
 
 ## Architektur
 
-- `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und weltkoordinatenbasierte Gras-Erde-Mischung
+- `terrain/`: kontinuierliches Höhenfeld, Terrain-Sampling und recycelte Chunks
+- `ecology/`: gemeinsame Feuchte-, Bodenbedeckungs- und Wald-Makrofelder ohne Platzierungsregeln
 - `trees/`: acht offizielle kleine und mittlere EZ-Tree-Preset-Templates in globalen Instancing-Batches und drei LOD-Bändern
 - `vegetation/`: deterministische Wald-, Blumen- und Steinverteilung; sechs globale Ground-Cover-Batches
 - `grass/`: ein kamera-zentriertes Instancing-Batch mit Distanz-Ausdünnung und inkrementellem Aufbau

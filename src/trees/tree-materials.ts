@@ -4,17 +4,8 @@
  */
 
 import { MeshPhongMaterial } from 'three';
-import { WIND_WAVE_GLSL } from '../wind/shader-chunks';
+import { WIND_INSTANCE_GLSL, WIND_WAVE_GLSL } from '../wind/shader-chunks';
 import { bindWindUniforms, type WindUniforms } from '../wind/wind-field';
-
-const LEAF_WIND_UNIFORMS = /* glsl */ `
-attribute float aWindPhase;
-attribute float aWindStrength;
-uniform vec2 uGlobalWindDirection;
-uniform float uGlobalWindAmplitude;
-uniform float uGlobalGust;
-uniform float uGlobalWindScale;
-`;
 
 export function createBranchMaterial(source: MeshPhongMaterial): MeshPhongMaterial {
   const material = source.clone();
@@ -35,7 +26,7 @@ export function createLeafMaterial(source: MeshPhongMaterial, wind: WindUniforms
   material.vertexColors = true;
   material.onBeforeCompile = (shader) => {
     bindWindUniforms(shader.uniforms, wind);
-    shader.vertexShader = `${LEAF_WIND_UNIFORMS}\nuniform float uTime;\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
+    shader.vertexShader = `${WIND_INSTANCE_GLSL}\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', leafProjectionShader);
   };
   material.customProgramCacheKey = () => 'endless-wilds-tree-leaf-v3';

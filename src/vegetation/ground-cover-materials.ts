@@ -4,7 +4,7 @@
  */
 
 import { DoubleSide, MeshStandardMaterial } from 'three';
-import { WIND_WAVE_GLSL } from '../wind/shader-chunks';
+import { WIND_INSTANCE_GLSL, WIND_WAVE_GLSL } from '../wind/shader-chunks';
 import { bindWindUniforms, type WindUniforms } from '../wind/wind-field';
 
 export function createFlowerMaterial(source: MeshStandardMaterial, wind: WindUniforms): MeshStandardMaterial {
@@ -22,7 +22,7 @@ export function createFlowerMaterial(source: MeshStandardMaterial, wind: WindUni
   });
   material.onBeforeCompile = (shader) => {
     bindWindUniforms(shader.uniforms, wind);
-    shader.vertexShader = `${flowerDeclarations}\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
+    shader.vertexShader = `${WIND_INSTANCE_GLSL}\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', flowerWindShader);
   };
   material.customProgramCacheKey = () => 'endless-wilds-flower-v3';
@@ -36,16 +36,6 @@ export function createRockMaterial(source: MeshStandardMaterial): MeshStandardMa
   material.vertexColors = true;
   return material;
 }
-
-const flowerDeclarations = /* glsl */ `
-attribute float aWindPhase;
-attribute float aWindStrength;
-uniform float uTime;
-uniform vec2 uGlobalWindDirection;
-uniform float uGlobalWindAmplitude;
-uniform float uGlobalGust;
-uniform float uGlobalWindScale;
-`;
 
 const flowerWindShader = /* glsl */ `
 vec4 instancePosition = instanceMatrix * vec4(transformed, 1.0);

@@ -17,14 +17,8 @@ import {
 } from 'three';
 import type { InstancedModelAsset, LandscapeAssets } from '../assets/landscape-assets';
 import { TERRAIN, VEGETATION } from '../config';
-import { updateAttributePrefix } from '../rendering/update-instanced-attributes';
-import {
-  getChunkRing,
-  getChunkViewWindow,
-  prioritiseChunkDirection,
-  type ChunkCoordinate,
-  type HorizontalDirection,
-} from '../world/chunk-coordinates';
+import { createDynamicScalarAttribute, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
+import { ChunkPrefetchQueue, getChunkIndex, getChunkViewWindow, type HorizontalDirection } from '../world/chunk-coordinates';
 import type { WindUniforms } from '../wind/wind-field';
 import type { FlowerPlacement, GroundCoverDistribution, RockPlacement } from './ground-cover-distribution';
 import { createFlowerMaterial, createRockMaterial } from './ground-cover-materials';
@@ -49,6 +43,7 @@ export class GroundCoverSystem {
   public visibleRockCount = 0;
   private readonly flowerBatches: GroundCoverBatch[];
   private readonly rockBatches: GroundCoverBatch[];
+  private readonly batches: readonly GroundCoverBatch[];
   private readonly transform = new Matrix4();
   private readonly rotation = new Quaternion();
   private readonly yaw = new Quaternion();
@@ -56,9 +51,7 @@ export class GroundCoverSystem {
   private readonly scale = new Vector3();
   private readonly normal = new Vector3();
   private readonly color = new Color();
-  private prefetchCenterX = Number.NaN;
-  private prefetchCenterZ = Number.NaN;
-  private readonly prefetchQueue: ChunkCoordinate[] = [];
+  private readonly prefetchQueue = new ChunkPrefetchQueue(TERRAIN.chunkRadius + 1);
 
   public constructor(
     assets: LandscapeAssets,
@@ -67,6 +60,7 @@ export class GroundCoverSystem {
   ) {
     this.flowerBatches = assets.flowers.map((asset) => this.createFlowerBatch(asset, wind));
     this.rockBatches = assets.rocks.map((asset) => this.createRockBatch(asset));
+    this.batches = [...this.flowerBatches, ...this.rockBatches];
   }
 
   public rebuild(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
@@ -75,20 +69,13 @@ export class GroundCoverSystem {
     this.finaliseBatches();
   }
 
-  public prepareStreaming(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
-    const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    if (centerX !== this.prefetchCenterX || centerZ !== this.prefetchCenterZ) {
-      this.prefetchCenterX = centerX;
-      this.prefetchCenterZ = centerZ;
-      this.fillPrefetchQueue(centerX, centerZ, viewDirection);
-    }
-    const coordinate = this.prefetchQueue.shift();
+  public prefetchNextChunk(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
+    const coordinate = this.prefetchQueue.next(cameraPosition, viewDirection);
     if (coordinate) this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
   }
 
   public dispose(): void {
-    for (const batch of [...this.flowerBatches, ...this.rockBatches]) {
+    for (const batch of this.batches) {
       batch.mesh.geometry.dispose();
       const materials = Array.isArray(batch.mesh.material) ? batch.mesh.material : [batch.mesh.material];
       materials.forEach((material) => material.dispose());
@@ -97,19 +84,13 @@ export class GroundCoverSystem {
   }
 
   private fillStreamingWindow(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
-    const centerX = Math.floor((cameraPosition.x + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
-    const centerZ = Math.floor((cameraPosition.z + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+    const centerX = getChunkIndex(cameraPosition.x);
+    const centerZ = getChunkIndex(cameraPosition.z);
     for (const coordinate of getChunkViewWindow(centerX, centerZ, TERRAIN.chunkRadius, viewDirection)) {
       const placements = this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
       placements.flowers.forEach((placement) => this.addFlower(placement, cameraPosition));
       placements.rocks.forEach((placement) => this.addRock(placement, cameraPosition));
     }
-  }
-
-  private fillPrefetchQueue(centerX: number, centerZ: number, viewDirection: HorizontalDirection): void {
-    this.prefetchQueue.length = 0;
-    const ring = getChunkRing(centerX, centerZ, TERRAIN.chunkRadius + 1);
-    this.prefetchQueue.push(...prioritiseChunkDirection(ring, centerX, centerZ, viewDirection));
   }
 
   private addFlower(placement: FlowerPlacement, cameraPosition: Vector3): void {
@@ -143,7 +124,10 @@ export class GroundCoverSystem {
     this.scale.set(placement.scale * 1.08, placement.scale * 0.82, placement.scale);
     this.transform.compose(this.position, this.rotation, this.scale);
     batch.mesh.setMatrixAt(index, this.transform);
-    this.color.copy(ROCK_DARK).lerp(ROCK_LIGHT, placement.tint * 0.55).lerp(WHITE, 0.04);
+    this.color
+      .copy(ROCK_DARK)
+      .lerp(ROCK_LIGHT, placement.tint * 0.55)
+      .lerp(WHITE, 0.04);
     batch.mesh.setColorAt(index, this.color);
     batch.count += 1;
     this.visibleRockCount += 1;
@@ -151,8 +135,8 @@ export class GroundCoverSystem {
 
   private createFlowerBatch(asset: InstancedModelAsset, wind: WindUniforms): GroundCoverBatch {
     const geometry = asset.geometry.clone();
-    const phase = new InstancedBufferAttribute(new Float32Array(VEGETATION.flowerBatchCapacity), 1).setUsage(DynamicDrawUsage);
-    const strength = new InstancedBufferAttribute(new Float32Array(VEGETATION.flowerBatchCapacity), 1).setUsage(DynamicDrawUsage);
+    const phase = createDynamicScalarAttribute(VEGETATION.flowerBatchCapacity);
+    const strength = createDynamicScalarAttribute(VEGETATION.flowerBatchCapacity);
     geometry.setAttribute('aWindPhase', phase);
     geometry.setAttribute('aWindStrength', strength);
     const materials = asset.materials.map((material) => createFlowerMaterial(material, wind));
@@ -170,7 +154,11 @@ export class GroundCoverSystem {
     return { mesh, count: 0 };
   }
 
-  private createMesh(geometry: BufferGeometry, materials: Material[], capacity: number): InstancedMesh<BufferGeometry, Material | Material[]> {
+  private createMesh(
+    geometry: BufferGeometry,
+    materials: Material[],
+    capacity: number,
+  ): InstancedMesh<BufferGeometry, Material | Material[]> {
     const material = materials.length === 1 ? materials[0]! : materials;
     const mesh = new InstancedMesh<BufferGeometry, Material | Material[]>(geometry, material, capacity);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -181,21 +169,11 @@ export class GroundCoverSystem {
   private resetBatches(): void {
     this.visibleFlowerCount = 0;
     this.visibleRockCount = 0;
-    for (const batch of [...this.flowerBatches, ...this.rockBatches]) batch.count = 0;
+    for (const batch of this.batches) batch.count = 0;
   }
 
   private finaliseBatches(): void {
-    for (const batch of [...this.flowerBatches, ...this.rockBatches]) this.finaliseBatch(batch);
-  }
-
-  private finaliseBatch(batch: GroundCoverBatch): void {
-    batch.mesh.count = batch.count;
-    if (batch.count === 0) return;
-    updateAttributePrefix(batch.mesh.instanceMatrix, batch.count);
-    if (batch.mesh.instanceColor) updateAttributePrefix(batch.mesh.instanceColor, batch.count);
-    if (batch.phase) updateAttributePrefix(batch.phase, batch.count);
-    if (batch.strength) updateAttributePrefix(batch.strength, batch.count);
-    batch.mesh.computeBoundingSphere();
+    for (const batch of this.batches) finaliseInstancedMesh(batch.mesh, batch.count, batch.phase, batch.strength);
   }
 
   private horizontalDistance(placement: { readonly x: number; readonly z: number }, cameraPosition: Vector3): number {

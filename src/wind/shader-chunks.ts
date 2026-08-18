@@ -3,6 +3,16 @@
  * Travelling harmonics align all vegetation without per-vertex procedural noise.
  */
 
+export const WIND_INSTANCE_GLSL = /* glsl */ `
+attribute float aWindPhase;
+attribute float aWindStrength;
+uniform float uTime;
+uniform vec2 uGlobalWindDirection;
+uniform float uGlobalWindAmplitude;
+uniform float uGlobalGust;
+uniform float uGlobalWindScale;
+`;
+
 export const WIND_WAVE_GLSL = /* glsl */ `
 float windWaveAt(vec2 worldPosition, float time, float scale, vec2 direction, float phase) {
   float travel = dot(worldPosition, direction) / scale * 6.2831 - time * 0.55 + phase;

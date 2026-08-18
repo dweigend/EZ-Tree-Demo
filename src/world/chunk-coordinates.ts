@@ -1,7 +1,9 @@
 /**
- * Defines shared chunk-window coordinate policies for terrain and vegetation consumers.
- * It owns coordinate selection only; streaming, caching, rendering, and lifecycle remain in their systems.
+ * Defines shared chunk-window coordinate and prefetch-order policies for terrain and vegetation consumers.
+ * Data loading, caching, rendering, and lifecycle remain in their systems.
  */
+
+import { TERRAIN } from '../config';
 
 export interface ChunkCoordinate {
   readonly key: string;
@@ -12,6 +14,28 @@ export interface ChunkCoordinate {
 export interface HorizontalDirection {
   readonly x: number;
   readonly z: number;
+}
+
+export const getChunkIndex = (worldCoordinate: number): number => Math.floor((worldCoordinate + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+
+export class ChunkPrefetchQueue {
+  private centerX = Number.NaN;
+  private centerZ = Number.NaN;
+  private readonly queue: ChunkCoordinate[] = [];
+
+  public constructor(private readonly radius: number) {}
+
+  public next(position: HorizontalDirection, direction: HorizontalDirection): ChunkCoordinate | undefined {
+    const centerX = getChunkIndex(position.x);
+    const centerZ = getChunkIndex(position.z);
+    if (centerX !== this.centerX || centerZ !== this.centerZ) {
+      this.centerX = centerX;
+      this.centerZ = centerZ;
+      this.queue.length = 0;
+      this.queue.push(...prioritiseChunkDirection(getChunkRing(centerX, centerZ, this.radius), centerX, centerZ, direction));
+    }
+    return this.queue.shift();
+  }
 }
 
 export function getChunkSquare(centerX: number, centerZ: number, radius: number): ChunkCoordinate[] {
@@ -25,9 +49,9 @@ export function getChunkSquare(centerX: number, centerZ: number, radius: number)
 }
 
 export function getChunkRing(centerX: number, centerZ: number, radius: number): ChunkCoordinate[] {
-  return getChunkSquare(centerX, centerZ, radius).filter((coordinate) => (
-    Math.max(Math.abs(coordinate.x - centerX), Math.abs(coordinate.z - centerZ)) === radius
-  ));
+  return getChunkSquare(centerX, centerZ, radius).filter(
+    (coordinate) => Math.max(Math.abs(coordinate.x - centerX), Math.abs(coordinate.z - centerZ)) === radius,
+  );
 }
 
 export function getChunkViewWindow(
@@ -55,8 +79,7 @@ export function prioritiseChunkDirection(
   direction: HorizontalDirection,
 ): ChunkCoordinate[] {
   return [...coordinates].sort((left, right) => {
-    const forwardDifference = getForwardScore(right, centerX, centerZ, direction)
-      - getForwardScore(left, centerX, centerZ, direction);
+    const forwardDifference = getForwardScore(right, centerX, centerZ, direction) - getForwardScore(left, centerX, centerZ, direction);
     return forwardDifference || getDistanceScore(left, centerX, centerZ) - getDistanceScore(right, centerX, centerZ);
   });
 }

@@ -6,29 +6,26 @@
 import { MathUtils, Vector3 } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
-import type { HeightField } from '../terrain/height-field';
+import { getGroundCover, getWoodland } from '../ecology/landscape-ecology';
+import type { HeightField } from '../core/height-field';
 
-export interface FlowerPlacement {
+interface GroundPlacement {
   readonly x: number;
   readonly y: number;
   readonly z: number;
   readonly rotation: number;
   readonly scale: number;
   readonly variant: number;
-  readonly windPhase: number;
-  readonly windStrength: number;
   readonly tint: number;
 }
 
-export interface RockPlacement {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-  readonly rotation: number;
-  readonly scale: number;
-  readonly variant: number;
+export interface FlowerPlacement extends GroundPlacement {
+  readonly windPhase: number;
+  readonly windStrength: number;
+}
+
+export interface RockPlacement extends GroundPlacement {
   readonly normal: readonly [number, number, number];
-  readonly tint: number;
 }
 
 export interface GroundCoverPlacements {
@@ -40,18 +37,25 @@ export class GroundCoverDistribution {
   private readonly cache = new Map<string, GroundCoverPlacements>();
   private readonly normal = new Vector3();
 
-  public constructor(private readonly heightField: HeightField, private readonly seed: number) {}
+  public constructor(
+    private readonly heightField: HeightField,
+    private readonly seed: number,
+  ) {}
 
   public getChunkPlacements(chunkX: number, chunkZ: number): GroundCoverPlacements {
     const key = `${chunkX}:${chunkZ}`;
     const cached = this.cache.get(key);
-    if (cached) return this.touchCache(key, cached);
+    if (cached) {
+      this.cache.delete(key);
+      this.cache.set(key, cached);
+      return cached;
+    }
     const placements = {
       flowers: this.createFlowers(chunkX, chunkZ),
       rocks: this.createRocks(chunkX, chunkZ),
     } satisfies GroundCoverPlacements;
     this.cache.set(key, placements);
-    this.trimCache();
+    if (this.cache.size > VEGETATION.placementCacheSize) this.cache.delete(this.cache.keys().next().value!);
     return placements;
   }
 
@@ -75,13 +79,11 @@ export class GroundCoverDistribution {
     if (height < -30 || height > 155) return null;
     const slope = this.heightField.getSlope(x, z);
     if (slope > 0.56) return null;
-    const moisture = this.heightField.getMoisture(x, z, height);
-    const cover = this.heightField.getGroundCover(x, z, moisture);
-    const woodland = this.heightField.getNoise(x + 240, z - 170, 0.00185, 3) * 0.5 + 0.5;
+    const cover = getGroundCover(this.heightField, x, z, height);
+    const woodland = getWoodland(this.heightField, x, z);
     const forestEdge = 1 - Math.abs(woodland - 0.56) * 2;
     const denseForest = MathUtils.smoothstep(woodland, 0.7, 0.9);
-    const probability = MathUtils.smoothstep(cover, 0.34, 0.76)
-      * (0.24 + Math.max(0, forestEdge) * 0.13) * (1 - denseForest * 0.72);
+    const probability = MathUtils.smoothstep(cover, 0.34, 0.76) * (0.24 + Math.max(0, forestEdge) * 0.13) * (1 - denseForest * 0.72);
     if (unitRandom(hashCoordinates(hash, 7, 13)) >= probability) return null;
     return this.buildFlower(x, z, height, hash);
   }
@@ -119,7 +121,7 @@ export class GroundCoverDistribution {
     const height = this.heightField.getHeight(x, z);
     this.heightField.getNormal(x, z, this.normal);
     const slope = Math.hypot(this.normal.x, this.normal.z) / Math.max(this.normal.y, 0.01);
-    const cluster = this.heightField.getNoise(x - 430, z + 210, 0.0032, 2) * 0.5 + 0.5;
+    const cluster = this.heightField.getNoise01((x - 430) * 0.0032, (z + 210) * 0.0032, 2);
     const highland = MathUtils.smoothstep(height, 55, 195);
     const rugged = MathUtils.smoothstep(slope, 0.18, 0.82);
     const probability = 0.055 + cluster * 0.13 + highland * 0.2 + rugged * 0.28;
@@ -143,19 +145,7 @@ export class GroundCoverDistribution {
 
   private getWorldCoordinate(chunk: number, cell: number, hash: number, cells: number, spacing: number): number {
     const chunkStart = chunk * TERRAIN.chunkSize - TERRAIN.chunkSize / 2;
-    const jitter = signedRandom(hashCoordinates(hash, cell, 0x51d3)) * spacing * 0.42;
+    const jitter = signedRandom(hashCoordinates(hash, cell, 0x51d3)) * spacing * VEGETATION.jitterRatio;
     return chunkStart + (cell + 0.5) * (TERRAIN.chunkSize / cells) + jitter;
-  }
-
-  private touchCache(key: string, placements: GroundCoverPlacements): GroundCoverPlacements {
-    this.cache.delete(key);
-    this.cache.set(key, placements);
-    return placements;
-  }
-
-  private trimCache(): void {
-    if (this.cache.size <= 96) return;
-    const oldestKey = this.cache.keys().next().value as string | undefined;
-    if (oldestKey) this.cache.delete(oldestKey);
   }
 }

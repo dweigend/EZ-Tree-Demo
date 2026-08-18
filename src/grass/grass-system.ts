@@ -18,8 +18,9 @@ import {
 import { VEGETATION } from '../config';
 import type { InstancedModelAsset } from '../assets/landscape-assets';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
-import { updateAttributePrefix } from '../rendering/update-instanced-attributes';
-import type { HeightField } from '../terrain/height-field';
+import { getGroundCover, getWoodland } from '../ecology/landscape-ecology';
+import { createDynamicScalarAttribute, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
+import type { HeightField } from '../core/height-field';
 import type { WindUniforms } from '../wind/wind-field';
 import { createGrassMaterial, prepareGrassGeometry } from './grass-material';
 
@@ -60,12 +61,9 @@ export class GrassSystem {
     asset: InstancedModelAsset,
   ) {
     const geometry = prepareGrassGeometry(asset.geometry);
-    this.rotation = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
-    this.phase = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
-    this.strength = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
-    this.rotation.setUsage(DynamicDrawUsage);
-    this.phase.setUsage(DynamicDrawUsage);
-    this.strength.setUsage(DynamicDrawUsage);
+    this.rotation = createDynamicScalarAttribute(VEGETATION.grassCapacity);
+    this.phase = createDynamicScalarAttribute(VEGETATION.grassCapacity);
+    this.strength = createDynamicScalarAttribute(VEGETATION.grassCapacity);
     geometry.setAttribute('aRotation', this.rotation);
     geometry.setAttribute('aWindPhase', this.phase);
     geometry.setAttribute('aWindStrength', this.strength);
@@ -123,13 +121,13 @@ export class GrassSystem {
   private completeBuild(job: GrassBuildJob): void {
     this.lastAnchor.copy(job.target);
     this.buildJob = null;
-    this.finaliseBuffers(job.count);
+    finaliseInstancedMesh(this.mesh, job.count, this.rotation, this.phase, this.strength);
   }
 
   private tryAddBlade(cellX: number, cellZ: number, cameraPosition: Vector3, index: number): boolean {
     const hash = hashCoordinates(this.seed, cellX, cellZ);
-    const worldX = (cellX + signedRandom(hashCoordinates(hash, 3, 7)) * 0.42) * VEGETATION.grassSpacing;
-    const worldZ = (cellZ + signedRandom(hashCoordinates(hash, 11, 13)) * 0.42) * VEGETATION.grassSpacing;
+    const worldX = (cellX + signedRandom(hashCoordinates(hash, 3, 7)) * VEGETATION.jitterRatio) * VEGETATION.grassSpacing;
+    const worldZ = (cellZ + signedRandom(hashCoordinates(hash, 11, 13)) * VEGETATION.jitterRatio) * VEGETATION.grassSpacing;
     const distance = Math.hypot(worldX - cameraPosition.x, worldZ - cameraPosition.z);
     const height = this.getAcceptedHeight(worldX, worldZ, distance, hash);
     if (height === null) return false;
@@ -143,12 +141,11 @@ export class GrassSystem {
     if (height > 205 || height < -38 || this.heightField.getSlope(x, z) > 0.82) return null;
     const distanceRatio = distance / VEGETATION.grassRadius;
     const distanceKeep = distanceRatio < 0.62 ? 1 : Math.max(0.08, 1 - (distanceRatio - 0.62) / 0.38);
-    const moisture = this.heightField.getMoisture(x, z, height);
-    const cover = this.heightField.getGroundCover(x, z, moisture);
+    const cover = getGroundCover(this.heightField, x, z, height);
     const meadow = MathUtils.smoothstep(cover, 0.3, 0.76);
-    const patch = this.heightField.getNoise(x - 130, z + 270, 0.012, 2) * 0.5 + 0.5;
+    const patch = this.heightField.getNoise01((x - 130) * 0.012, (z + 270) * 0.012, 2);
     const patchDensity = MathUtils.smoothstep(patch, 0.28, 0.72);
-    const woodland = this.heightField.getNoise(x + 240, z - 170, 0.00185, 3) * 0.5 + 0.5;
+    const woodland = getWoodland(this.heightField, x, z);
     const forestShade = MathUtils.smoothstep(woodland, 0.68, 0.88);
     const ecology = (0.04 + meadow * 0.78) * (0.16 + patchDensity * 0.84) * (1 - forestShade * 0.52);
     return unitRandom(hashCoordinates(hash, 17, 19)) < ecology * distanceKeep ? height : null;
@@ -166,16 +163,5 @@ export class GrassSystem {
     this.strength.setX(index, 0.72 + unitRandom(hashCoordinates(hash, 59, 61)) * 0.5);
     this.color.copy(GRASS_DARK).lerp(GRASS_LIGHT, unitRandom(hashCoordinates(hash, 67, 71)));
     this.mesh.setColorAt(index, this.color);
-  }
-
-  private finaliseBuffers(count: number): void {
-    this.mesh.count = count;
-    if (count === 0) return;
-    updateAttributePrefix(this.mesh.instanceMatrix, count);
-    if (this.mesh.instanceColor) updateAttributePrefix(this.mesh.instanceColor, count);
-    updateAttributePrefix(this.rotation, count);
-    updateAttributePrefix(this.phase, count);
-    updateAttributePrefix(this.strength, count);
-    this.mesh.computeBoundingSphere();
   }
 }

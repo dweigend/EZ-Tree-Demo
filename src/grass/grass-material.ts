@@ -5,7 +5,7 @@
 
 import { BufferAttribute, BufferGeometry, DoubleSide, MathUtils, MeshPhongMaterial, MeshStandardMaterial } from 'three';
 import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
-import { WIND_WAVE_GLSL } from '../wind/shader-chunks';
+import { WIND_INSTANCE_GLSL, WIND_WAVE_GLSL } from '../wind/shader-chunks';
 import { bindWindUniforms, type WindUniforms } from '../wind/wind-field';
 
 const GRASS_SEGMENT_LENGTH = 1.1;
@@ -40,24 +40,12 @@ export function createGrassMaterial(source: MeshStandardMaterial, wind: WindUnif
   material.dithering = true;
   material.onBeforeCompile = (shader) => {
     bindWindUniforms(shader.uniforms, wind);
-    shader.vertexShader = `${grassDeclarations}\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
+    shader.vertexShader = `${WIND_INSTANCE_GLSL}\nattribute float aRotation;\nattribute float aBendWeight;\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', grassBendShader);
   };
   material.customProgramCacheKey = () => 'endless-wilds-grass-v5';
   return material;
 }
-
-const grassDeclarations = /* glsl */ `
-attribute float aRotation;
-attribute float aWindPhase;
-attribute float aWindStrength;
-attribute float aBendWeight;
-uniform float uTime;
-uniform vec2 uGlobalWindDirection;
-uniform float uGlobalWindAmplitude;
-uniform float uGlobalGust;
-uniform float uGlobalWindScale;
-`;
 
 const grassBendShader = /* glsl */ `
 vec3 transformed = vec3(position);

@@ -6,12 +6,9 @@
 import { MathUtils } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
-import type { HeightField } from '../terrain/height-field';
-import type { TreeSpecies } from '../trees/tree-templates';
-
-export interface TreeVariantProfile {
-  readonly species: TreeSpecies;
-}
+import { getMoisture, getWoodland } from '../ecology/landscape-ecology';
+import type { HeightField } from '../core/height-field';
+import type { TreeSpecies } from './tree-templates';
 
 export interface TreePlacement {
   readonly x: number;
@@ -39,7 +36,7 @@ export class ForestDistribution {
   public constructor(
     private readonly heightField: HeightField,
     private readonly seed: number,
-    variants: readonly TreeVariantProfile[],
+    variants: readonly { readonly species: TreeSpecies }[],
   ) {
     if (variants.length === 0) throw new Error('Forest distribution requires tree variants.');
     variants.forEach((variant, index) => this.variantIndices[variant.species].push(index));
@@ -62,14 +59,8 @@ export class ForestDistribution {
       }
     }
     this.cache.set(key, placements);
-    this.trimCache();
+    if (this.cache.size > VEGETATION.placementCacheSize) this.cache.delete(this.cache.keys().next().value!);
     return placements;
-  }
-
-  private trimCache(): void {
-    if (this.cache.size <= 96) return;
-    const oldestKey = this.cache.keys().next().value as string | undefined;
-    if (oldestKey) this.cache.delete(oldestKey);
   }
 
   private createPlacement(chunkX: number, chunkZ: number, cellX: number, cellZ: number, cells: number): TreePlacement | null {
@@ -78,21 +69,22 @@ export class ForestDistribution {
     const z = this.getWorldCoordinate(chunkZ, cellZ, cellHash, 0x74a9);
     const height = this.heightField.getHeight(x, z);
     const slope = this.heightField.getSlope(x, z);
-    const moisture = this.heightField.getMoisture(x, z, height);
+    const moisture = getMoisture(this.heightField, x, z, height);
     if (!this.acceptsSite(x, z, height, slope, moisture, cellHash)) return null;
     return this.buildPlacement(x, z, height, slope, moisture, cellHash);
   }
 
   private getWorldCoordinate(chunk: number, cell: number, hash: number, salt: number): number {
     const chunkStart = chunk * TERRAIN.chunkSize - TERRAIN.chunkSize / 2;
-    const jitter = signedRandom(hashCoordinates(hash, cell, salt)) * VEGETATION.treeSpacing * 0.42;
+    const jitter = signedRandom(hashCoordinates(hash, cell, salt)) * VEGETATION.treeSpacing * VEGETATION.jitterRatio;
     return chunkStart + (cell + 0.5) * VEGETATION.treeSpacing + jitter;
   }
 
   private acceptsSite(x: number, z: number, height: number, slope: number, moisture: number, hash: number): boolean {
-    const cluster = this.heightField.getNoise(x + 240, z - 170, 0.00185, 3) * 0.5 + 0.5;
-    const grove = this.heightField.getNoise(x - 90, z + 310, 0.0048, 2) * 0.5 + 0.5;
-    const clearing = MathUtils.smoothstep(this.heightField.getNoise(x + 70, z + 20, 0.009, 2) * 0.5 + 0.5, 0.72, 0.9);
+    const cluster = getWoodland(this.heightField, x, z);
+    const grove = this.heightField.getNoise01((x - 90) * 0.0048, (z + 310) * 0.0048, 2);
+    const clearingNoise = this.heightField.getNoise01((x + 70) * 0.009, (z + 20) * 0.009, 2);
+    const clearing = MathUtils.smoothstep(clearingNoise, 0.72, 0.9);
     const altitude = MathUtils.smoothstep(height, -35, 24) * (1 - MathUtils.smoothstep(height, 148, 225));
     const slopeFitness = 1 - MathUtils.smoothstep(slope, 0.38, 1.05);
     const forestCore = MathUtils.smoothstep(cluster, 0.46, 0.72) * (0.36 + moisture * 0.48);
@@ -125,8 +117,8 @@ export class ForestDistribution {
   }
 
   private chooseSpecies(x: number, z: number, height: number, slope: number, moisture: number): TreeSpecies {
-    const broadBiome = this.heightField.getNoise(x - 610, z + 370, 0.00085, 3) * 0.5 + 0.5;
-    const localBiome = this.heightField.getNoise(x + 190, z - 430, 0.0045, 2) * 0.5 + 0.5;
+    const broadBiome = this.heightField.getNoise01((x - 610) * 0.00085, (z + 370) * 0.00085, 3);
+    const localBiome = this.heightField.getNoise01((x + 190) * 0.0045, (z - 430) * 0.0045, 2);
     const biome = broadBiome * 0.72 + localBiome * 0.28;
     const highland = MathUtils.smoothstep(height, 58, 175);
     const pineAffinity = highland * 0.62 + MathUtils.smoothstep(slope, 0.32, 0.8) * 0.18 + (1 - moisture) * 0.16;
@@ -136,5 +128,4 @@ export class ForestDistribution {
     if (wetland > 0.53) return 'ash';
     return 'oak';
   }
-
 }

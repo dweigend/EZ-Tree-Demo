@@ -3,17 +3,22 @@
  * It resamples a continuous HeightField when reassigned and shares its material with all chunks.
  */
 
-import { BufferAttribute, BufferGeometry, DynamicDrawUsage, Mesh, MeshStandardMaterial, PlaneGeometry } from 'three';
+import { BufferAttribute, BufferGeometry, DynamicDrawUsage, Mesh, MeshStandardMaterial, PlaneGeometry, Vector3 } from 'three';
 import { TERRAIN } from '../config';
-import type { HeightField } from './height-field';
+import { getGroundCover } from '../ecology/landscape-ecology';
+import type { HeightField } from '../core/height-field';
 
 export class TerrainChunk {
   public readonly mesh: Mesh<BufferGeometry, MeshStandardMaterial>;
   private readonly positions: BufferAttribute;
   private readonly normals: BufferAttribute;
   private readonly groundCover: BufferAttribute;
+  private readonly normal = new Vector3();
 
-  public constructor(private readonly heightField: HeightField, material: MeshStandardMaterial) {
+  public constructor(
+    private readonly heightField: HeightField,
+    material: MeshStandardMaterial,
+  ) {
     const geometry = new PlaneGeometry(TERRAIN.chunkSize, TERRAIN.chunkSize, TERRAIN.segments, TERRAIN.segments);
     geometry.rotateX(-Math.PI / 2);
     this.positions = geometry.getAttribute('position') as BufferAttribute;
@@ -48,14 +53,10 @@ export class TerrainChunk {
   private writeSurfaceVertex(index: number): void {
     const worldX = this.mesh.position.x + this.positions.getX(index);
     const worldZ = this.mesh.position.z + this.positions.getZ(index);
-    const step = TERRAIN.normalSampleDistance;
     const height = this.heightField.getHeight(worldX, worldZ);
-    const dx = this.heightField.getHeight(worldX + step, worldZ) - this.heightField.getHeight(worldX - step, worldZ);
-    const dz = this.heightField.getHeight(worldX, worldZ + step) - this.heightField.getHeight(worldX, worldZ - step);
-    const inverseLength = 1 / Math.hypot(dx, step * 2, dz);
-    const moisture = this.heightField.getMoisture(worldX, worldZ, height);
+    this.heightField.getNormal(worldX, worldZ, this.normal, TERRAIN.normalSampleDistance);
     this.positions.setY(index, height);
-    this.normals.setXYZ(index, -dx * inverseLength, step * 2 * inverseLength, -dz * inverseLength);
-    this.groundCover.setX(index, this.heightField.getGroundCover(worldX, worldZ, moisture));
+    this.normals.setXYZ(index, this.normal.x, this.normal.y, this.normal.z);
+    this.groundCover.setX(index, getGroundCover(this.heightField, worldX, worldZ, height));
   }
 }

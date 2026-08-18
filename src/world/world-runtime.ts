@@ -11,11 +11,11 @@ import { hashString } from '../core/random';
 import { GrassSystem } from '../grass/grass-system';
 import { createRenderer } from '../rendering/create-renderer';
 import { Environment } from '../rendering/environment';
-import { HeightField } from '../terrain/height-field';
+import { HeightField } from '../core/height-field';
 import { TerrainSystem } from '../terrain/terrain-system';
 import { createTreeVariants } from '../trees/tree-factory';
 import { TreeSystem } from '../trees/tree-system';
-import { ForestDistribution } from '../vegetation/forest-distribution';
+import { ForestDistribution } from '../trees/forest-distribution';
 import { GroundCoverDistribution } from '../vegetation/ground-cover-distribution';
 import { GroundCoverSystem } from '../vegetation/ground-cover-system';
 import { WindField } from '../wind/wind-field';
@@ -88,7 +88,7 @@ export class WorldRuntime {
 
   public async start(): Promise<void> {
     this.camera.getWorldDirection(this.viewDirection);
-    this.terrain.update(this.camera.position, this.viewDirection);
+    this.terrain.updateChunkWindow(this.camera.position, this.viewDirection);
     this.trees.rebuild(this.camera.position, this.viewDirection);
     this.grass.update(this.camera.position);
     this.groundCover.rebuild(this.camera.position, this.viewDirection);
@@ -120,9 +120,9 @@ export class WorldRuntime {
     const elapsedSeconds = this.clock.elapsedTime;
     this.controls.update(simulationDeltaSeconds);
     this.camera.getWorldDirection(this.viewDirection);
-    const terrainChanged = this.terrain.update(this.camera.position, this.viewDirection);
-    const vegetationRefreshed = this.refreshVegetation(terrainChanged);
-    if (!terrainChanged && !vegetationRefreshed) this.processBackgroundStep();
+    const chunkWindowChanged = this.terrain.updateChunkWindow(this.camera.position, this.viewDirection);
+    const vegetationRefreshed = this.refreshVegetation(chunkWindowChanged);
+    if (!chunkWindowChanged && !vegetationRefreshed) this.processBackgroundStep();
     this.grass.update(this.camera.position);
     this.wind.update(elapsedSeconds);
     this.environment.update(this.camera);
@@ -138,14 +138,8 @@ export class WorldRuntime {
     this.camera.lookAt(new Vector3(0, targetHeight, -80));
   }
 
-  private refreshVegetation(terrainChanged: boolean): boolean {
-    if (terrainChanged) {
-      this.trees.rebuild(this.camera.position, this.viewDirection);
-      this.vegetationDirection.copy(this.viewDirection);
-      this.groundCoverRefreshPending = true;
-      return true;
-    }
-    if (this.hasTurnedPastVegetationWindow()) {
+  private refreshVegetation(chunkWindowChanged: boolean): boolean {
+    if (chunkWindowChanged || this.hasTurnedPastVegetationWindow()) {
       this.trees.rebuild(this.camera.position, this.viewDirection);
       this.vegetationDirection.copy(this.viewDirection);
       this.groundCoverRefreshPending = true;
@@ -166,9 +160,9 @@ export class WorldRuntime {
   }
 
   private processBackgroundStep(): void {
-    if (this.backgroundStep === 0) this.trees.prepareStreaming(this.camera.position, this.viewDirection);
-    if (this.backgroundStep === 1) this.groundCover.prepareStreaming(this.camera.position, this.viewDirection);
-    if (this.backgroundStep === 2) this.terrain.processStreaming();
+    if (this.backgroundStep === 0) this.trees.prefetchNextChunk(this.camera.position, this.viewDirection);
+    if (this.backgroundStep === 1) this.groundCover.prefetchNextChunk(this.camera.position, this.viewDirection);
+    if (this.backgroundStep === 2) this.terrain.processNextChunk();
     this.backgroundStep = (this.backgroundStep + 1) % 3;
   }
 
