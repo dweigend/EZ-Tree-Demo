@@ -1,29 +1,13 @@
 /**
- * Shared GLSL helpers for spatially coherent vegetation wind.
- * This compact value-noise function supplements EZ-Tree's built-in simplex implementation.
+ * Shared GLSL helper for spatially coherent vegetation wind.
+ * Travelling harmonics align all vegetation without per-vertex procedural noise.
  */
 
-export const WIND_NOISE_GLSL = /* glsl */ `
-float windHash(vec2 point) {
-  return fract(sin(dot(point, vec2(127.1, 311.7))) * 43758.5453123);
-}
-
-float windNoise(vec2 point) {
-  vec2 cell = floor(point);
-  vec2 local = fract(point);
-  vec2 eased = local * local * (3.0 - 2.0 * local);
-  float a = windHash(cell);
-  float b = windHash(cell + vec2(1.0, 0.0));
-  float c = windHash(cell + vec2(0.0, 1.0));
-  float d = windHash(cell + vec2(1.0, 1.0));
-  return mix(mix(a, b, eased.x), mix(c, d, eased.x), eased.y);
-}
-
-float windPhaseAt(vec2 worldPosition, float time, float scale, vec2 direction) {
-  return windNoise(worldPosition / scale - direction * time * 0.025);
-}
-
-float windGustAt(vec2 worldPosition, float time, float scale, vec2 direction) {
-  return 0.58 + 0.42 * windNoise(worldPosition / (scale * 2.3) - direction * time * 0.018);
+export const WIND_WAVE_GLSL = /* glsl */ `
+float windWaveAt(vec2 worldPosition, float time, float scale, vec2 direction, float phase) {
+  float travel = dot(worldPosition, direction) / scale * 6.2831 - time * 0.55 + phase;
+  return 0.65 * sin(travel)
+    + 0.25 * sin(travel * 1.9 + time * 0.23 + phase * 0.7)
+    + 0.10 * sin(travel * 0.43 - time * 0.17);
 }
 `;

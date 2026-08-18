@@ -68,7 +68,7 @@ export class WorldRuntime {
     private readonly assets: LandscapeAssets,
   ) {
     this.scene.fog = new FogExp2('#b8c8c0', RENDERING.fogDensity);
-    this.environment = new Environment(this.scene, this.wind.uniforms);
+    this.environment = new Environment(this.scene);
     this.positionCamera();
     mount.append(this.renderer.domElement);
     this.terrain = new TerrainSystem(this.heightField, assets.ground);

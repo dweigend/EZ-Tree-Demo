@@ -7,11 +7,10 @@ import { MathUtils } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
 import type { HeightField } from '../terrain/height-field';
-import type { TreeSize, TreeSpecies } from '../trees/tree-templates';
+import type { TreeSpecies } from '../trees/tree-templates';
 
 export interface TreeVariantProfile {
   readonly species: TreeSpecies;
-  readonly size: TreeSize;
 }
 
 export interface TreePlacement {
@@ -30,7 +29,12 @@ export interface TreePlacement {
 
 export class ForestDistribution {
   private readonly cache = new Map<string, TreePlacement[]>();
-  private readonly variantIndices = new Map<string, number>();
+  private readonly variantIndices: Record<TreeSpecies, number[]> = {
+    ash: [],
+    aspen: [],
+    oak: [],
+    pine: [],
+  };
 
   public constructor(
     private readonly heightField: HeightField,
@@ -38,7 +42,7 @@ export class ForestDistribution {
     variants: readonly TreeVariantProfile[],
   ) {
     if (variants.length === 0) throw new Error('Forest distribution requires tree variants.');
-    variants.forEach((variant, index) => this.variantIndices.set(variantKey(variant.species, variant.size), index));
+    variants.forEach((variant, index) => this.variantIndices[variant.species].push(index));
   }
 
   public getChunkPlacements(chunkX: number, chunkZ: number): TreePlacement[] {
@@ -116,8 +120,8 @@ export class ForestDistribution {
 
   private chooseVariant(x: number, z: number, height: number, slope: number, moisture: number, hash: number): number {
     const species = this.chooseSpecies(x, z, height, slope, moisture);
-    const size = this.chooseSize(slope, hash);
-    return this.variantIndices.get(variantKey(species, size)) ?? 0;
+    const candidates = this.variantIndices[species];
+    return candidates[hashCoordinates(hash, 23, 31) % candidates.length] ?? 0;
   }
 
   private chooseSpecies(x: number, z: number, height: number, slope: number, moisture: number): TreeSpecies {
@@ -133,14 +137,4 @@ export class ForestDistribution {
     return 'oak';
   }
 
-  private chooseSize(slope: number, hash: number): TreeSize {
-    const size = unitRandom(hashCoordinates(hash, 23, 31)) + MathUtils.smoothstep(slope, 0.35, 0.85) * 0.18;
-    if (size < 0.26) return 'large';
-    if (size < 0.73) return 'medium';
-    return 'small';
-  }
-}
-
-function variantKey(species: TreeSpecies, size: TreeSize): string {
-  return `${species}:${size}`;
 }

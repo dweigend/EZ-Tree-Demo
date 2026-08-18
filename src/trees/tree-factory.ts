@@ -3,13 +3,13 @@
  * No tree generation occurs after construction; runtime trees are GPU instances only.
  */
 
-import { Tree } from '@dgreenheck/ez-tree';
+import { Tree, TreePreset } from '@dgreenheck/ez-tree';
 import { BufferAttribute, BufferGeometry, Matrix4, MeshPhongMaterial } from 'three';
 import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import { hashCoordinates } from '../core/random';
 import type { WindUniforms } from '../wind/wind-field';
 import { createBranchMaterial, createLeafMaterial } from './tree-materials';
-import { TREE_TEMPLATES, type TreeSize, type TreeSpecies, type TreeTemplate } from './tree-templates';
+import { TREE_TEMPLATES, type TreeSpecies, type TreeTemplate } from './tree-templates';
 
 export type TreeLod = 'near' | 'middle' | 'far';
 
@@ -19,9 +19,7 @@ export interface TreeGeometryPair {
 }
 
 export interface TreeVariant {
-  readonly preset: TreeTemplate['preset'];
   readonly species: TreeSpecies;
-  readonly size: TreeSize;
   readonly lods: Readonly<Record<TreeLod, TreeGeometryPair>>;
   readonly branchMaterial: MeshPhongMaterial;
   readonly leafMaterial: MeshPhongMaterial;
@@ -33,19 +31,18 @@ export function createTreeVariants(wind: WindUniforms, seed: number): TreeVarian
 }
 
 function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms): TreeVariant {
-  const tree = new Tree();
-  tree.loadPreset(template.preset);
-  tree.options.seed = seed;
+  const options = structuredClone(TreePreset[template.preset]);
+  options.seed = seed;
+  // EZ-Tree's runtime accepts preset data, but 1.1.0 types require its mutable TreeOptions class.
+  const tree = new Tree(options as Tree['options']);
   tree.generate();
   const near = normalisePair(tree.branchesMesh.geometry, tree.leavesMesh.geometry);
   const branchSource = requirePhongMaterial(tree.branchesMesh.material);
   const leafSource = requirePhongMaterial(tree.leavesMesh.material);
   const variant = {
-    preset: template.preset,
     species: template.species,
-    size: template.size,
     height: template.height,
-    branchMaterial: createBranchMaterial(branchSource, wind),
+    branchMaterial: createBranchMaterial(branchSource),
     leafMaterial: createLeafMaterial(leafSource, wind),
     lods: createLods(near),
   } satisfies TreeVariant;
@@ -103,7 +100,6 @@ function simplify(source: BufferGeometry, retainedFraction: number): BufferGeome
   const removeCount = Math.max(0, Math.floor(vertexCount * (1 - retainedFraction)));
   if (removeCount === 0) return source.clone();
   try {
-    source.computeVertexNormals();
     return new SimplifyModifier().modify(source, removeCount);
   } catch {
     return source.clone();

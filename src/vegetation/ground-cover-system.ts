@@ -17,6 +17,7 @@ import {
 } from 'three';
 import type { InstancedModelAsset, LandscapeAssets } from '../assets/landscape-assets';
 import { TERRAIN, VEGETATION } from '../config';
+import { updateAttributePrefix } from '../rendering/update-instanced-attributes';
 import {
   getChunkRing,
   getChunkViewWindow,
@@ -189,11 +190,12 @@ export class GroundCoverSystem {
 
   private finaliseBatch(batch: GroundCoverBatch): void {
     batch.mesh.count = batch.count;
-    batch.mesh.instanceMatrix.needsUpdate = true;
-    if (batch.mesh.instanceColor) batch.mesh.instanceColor.needsUpdate = true;
-    if (batch.phase) batch.phase.needsUpdate = true;
-    if (batch.strength) batch.strength.needsUpdate = true;
-    if (batch.count > 0) batch.mesh.computeBoundingSphere();
+    if (batch.count === 0) return;
+    updateAttributePrefix(batch.mesh.instanceMatrix, batch.count);
+    if (batch.mesh.instanceColor) updateAttributePrefix(batch.mesh.instanceColor, batch.count);
+    if (batch.phase) updateAttributePrefix(batch.phase, batch.count);
+    if (batch.strength) updateAttributePrefix(batch.strength, batch.count);
+    batch.mesh.computeBoundingSphere();
   }
 
   private horizontalDistance(placement: { readonly x: number; readonly z: number }, cameraPosition: Vector3): number {

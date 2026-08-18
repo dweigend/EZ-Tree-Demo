@@ -18,6 +18,7 @@ import {
 import { VEGETATION } from '../config';
 import type { InstancedModelAsset } from '../assets/landscape-assets';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
+import { updateAttributePrefix } from '../rendering/update-instanced-attributes';
 import type { HeightField } from '../terrain/height-field';
 import type { WindUniforms } from '../wind/wind-field';
 import { createGrassMaterial, prepareGrassGeometry } from './grass-material';
@@ -39,7 +40,9 @@ interface GrassBuildJob {
 
 export class GrassSystem {
   public readonly mesh: InstancedMesh<BufferGeometry, MeshPhongMaterial>;
-  public visibleBladeCount = 0;
+  public get visibleBladeCount(): number {
+    return this.mesh.count;
+  }
   private readonly rotation: InstancedBufferAttribute;
   private readonly phase: InstancedBufferAttribute;
   private readonly strength: InstancedBufferAttribute;
@@ -118,10 +121,9 @@ export class GrassSystem {
   }
 
   private completeBuild(job: GrassBuildJob): void {
-    this.visibleBladeCount = job.count;
     this.lastAnchor.copy(job.target);
     this.buildJob = null;
-    this.finaliseBuffers();
+    this.finaliseBuffers(job.count);
   }
 
   private tryAddBlade(cellX: number, cellZ: number, cameraPosition: Vector3, index: number): boolean {
@@ -166,13 +168,14 @@ export class GrassSystem {
     this.mesh.setColorAt(index, this.color);
   }
 
-  private finaliseBuffers(): void {
-    this.mesh.count = this.visibleBladeCount;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    this.mesh.instanceColor && (this.mesh.instanceColor.needsUpdate = true);
-    this.rotation.needsUpdate = true;
-    this.phase.needsUpdate = true;
-    this.strength.needsUpdate = true;
-    if (this.visibleBladeCount > 0) this.mesh.computeBoundingSphere();
+  private finaliseBuffers(count: number): void {
+    this.mesh.count = count;
+    if (count === 0) return;
+    updateAttributePrefix(this.mesh.instanceMatrix, count);
+    if (this.mesh.instanceColor) updateAttributePrefix(this.mesh.instanceColor, count);
+    updateAttributePrefix(this.rotation, count);
+    updateAttributePrefix(this.phase, count);
+    updateAttributePrefix(this.strength, count);
+    this.mesh.computeBoundingSphere();
   }
 }

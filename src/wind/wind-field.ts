@@ -14,6 +14,17 @@ export interface WindUniforms {
   readonly spatialScale: { value: number };
 }
 
+export function bindWindUniforms(
+  uniforms: Record<string, { value: unknown }>,
+  wind: WindUniforms,
+): void {
+  uniforms.uTime = wind.time;
+  uniforms.uGlobalWindDirection = wind.direction;
+  uniforms.uGlobalWindAmplitude = wind.amplitude;
+  uniforms.uGlobalGust = wind.gust;
+  uniforms.uGlobalWindScale = wind.spatialScale;
+}
+
 export class WindField {
   public readonly uniforms: WindUniforms = {
     time: { value: 0 },

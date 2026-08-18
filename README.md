@@ -38,12 +38,12 @@ http://localhost:5173/?distance=900&relief=1.25
 ## Architektur
 
 - `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und weltkoordinatenbasierte Gras-Erde-Mischung
-- `trees/`: zwölf offizielle EZ-Tree-Preset-Templates in globalen Instancing-Batches und drei LOD-Bändern
+- `trees/`: acht offizielle kleine und mittlere EZ-Tree-Preset-Templates in globalen Instancing-Batches und drei LOD-Bändern
 - `vegetation/`: deterministische Wald-, Blumen- und Steinverteilung; sechs globale Ground-Cover-Batches
 - `grass/`: ein kamera-zentriertes Instancing-Batch mit Distanz-Ausdünnung und inkrementellem Aufbau
-- `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume, Gras, Blumen und Wolken
+- `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume, Gras und Blumen
 - `controls/`: isolierte Pointer-Lock-Flugsteuerung
-- `rendering/`: WebGL2, Color Management, Himmel, eine GPU-Wolkenschicht, Fog und begrenzte Schatten
+- `rendering/`: WebGL2, Color Management, atmosphärischer Himmel, Fog und begrenzte Schatten
 - `world/`: explizite Frame-Reihenfolge und Lifecycle
 
 Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder verschwinden in abgestimmtem Fog und Himmel. Das Terrain behält ein vollständiges Sicherheitsfenster um die Kamera. Vegetation nutzt darin einen vollen 3×3-Kern plus einen breiten Vorwärtssektor; weit hinter der Blickrichtung werden nur kleine Assets ausgelassen. Wald- und Ground-Cover-Daten werden vor Chunk-Wechseln in Blickrichtung priorisiert, während Gras- und Terrain-Aufbau ihre Arbeit über mehrere Frames verteilen.

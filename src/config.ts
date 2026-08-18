@@ -24,10 +24,10 @@ export const TERRAIN = {
 } as const;
 
 export const VEGETATION = {
-  treeBatchCapacity: 640,
+  treeBatchCapacity: 320,
   treeSpacing: 22,
-  nearDistance: 175,
-  middleDistance: viewDistance * 0.4,
+  nearDistance: 110,
+  middleDistance: viewDistance * 0.34,
   farDistance: viewDistance * 0.74,
   grassRadius: 200,
   grassSpacing: 1.25,
