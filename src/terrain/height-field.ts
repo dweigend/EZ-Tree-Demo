@@ -6,7 +6,6 @@
 import { MathUtils, Vector3 } from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { hashString } from '../core/random';
-import { createMacroFeatureSample, type EcologyField, type MacroFeatureSample } from '../ecology/ecology-field';
 
 const SURFACE_SAMPLE_DISTANCE = 3;
 
@@ -14,25 +13,14 @@ export class HeightField {
   private readonly noise = new ImprovedNoise();
   private readonly offsetX: number;
   private readonly offsetZ: number;
-  private readonly lakeFeature = createMacroFeatureSample();
 
-  public constructor(seed: string, private readonly relief = 1, private readonly ecology?: EcologyField) {
+  public constructor(seed: string, private readonly relief = 1) {
     const hash = hashString(seed);
     this.offsetX = (hash & 0xffff) * 0.73;
     this.offsetZ = ((hash >>> 16) & 0xffff) * 0.91;
   }
 
   public getHeight(x: number, z: number): number {
-    const baseHeight = this.getBaseHeight(x, z);
-    if (!this.ecology) return baseHeight;
-    return this.applyLakeBasin(x, z, baseHeight);
-  }
-
-  public getLakeSurfaceHeight(feature: MacroFeatureSample): number {
-    return this.getBaseHeight(feature.centerX, feature.centerZ) - 1.5;
-  }
-
-  private getBaseHeight(x: number, z: number): number {
     const warpX = this.fbm(x * 0.00072 + 31, z * 0.00072 - 19, 3) * 215;
     const warpZ = this.fbm(x * 0.00072 - 47, z * 0.00072 + 23, 3) * 215;
     const warpedX = x + warpX;
@@ -46,14 +34,6 @@ export class HeightField {
     const valley = this.getValleyDepth(warpedX, warpedZ);
     return macroLandform + continental * 36 * this.relief + mountainMask * ridges ** 2.25 * 198
       + hills * (1 - plains * 0.72) - valley;
-  }
-
-  private applyLakeBasin(x: number, z: number, baseHeight: number): number {
-    const feature = this.ecology?.sampleMacroFeature(x, z, this.lakeFeature);
-    if (!feature || feature.kind !== 'lake' || feature.influence === 0) return baseHeight;
-    const waterHeight = this.getLakeSurfaceHeight(feature);
-    const basinHeight = waterHeight - 3.5;
-    return MathUtils.lerp(baseHeight, basinHeight, feature.influence);
   }
 
   public getSlope(x: number, z: number): number {
