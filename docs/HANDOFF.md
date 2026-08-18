@@ -23,7 +23,8 @@ Boundary: Desktop browser evidence does not claim physical PICO performance or r
   vereinfachte Distanzstämme und globale `InstancedMesh`-Batches halten Draw Calls stabil.
 - Zwei Gras-Batches rendern organische Wiesen-Cluster und größere Büschel. Platzierung geschieht
   schrittweise auf der CPU; Wind, Rotation und individuelle Phase laufen anschließend im Vertex-Shader.
-- Drei globale Stein-Batches behalten die importierten PBR-Materialien und variieren nur Matrix und Farbe.
+- Drei globale Stein-Batches verwenden geschlossene CC0-Low-Poly-Modelle von Quaternius auf Poly Pizza
+  und variieren nur Matrix und Farbe. Es findet keine Laufzeit-Decimation mehr statt.
 - Browserdiagnostik und deterministische Flugtests prüfen Dichte, Draw Calls, Dreiecke, FPS und
   Framezeit-Perzentile. Messwerte und die physische PICO-Prozedur stehen in `docs/PERFORMANCE.md`.
 
@@ -57,18 +58,12 @@ git diff --check
 `bun run test:browser` enthält statische Dichte-, Desktop-Flug- und PICO-Profilbudgets. Ein bestandener
 PICO-Browsertest ist lediglich ein Geometrie-/Draw-Call-Gate und keine Headset-Freigabe.
 
-## Bekannte Grenze: Stein-Decimation
+## Behobener Stein-Defekt
 
-`GroundCoverSystem` reduziert die drei texturierten Rock-GLBs beim Start mit `SimplifyModifier` auf 22 %
-der Quellvertices. Die Originale sind geometrisch geschlossen und ihre Materialien sind opaque sowie
-doppelseitig. Die aggressive Vereinfachung öffnet jedoch 227, 174 und 218 geometrische Kanten und erzeugt
-teilweise umgedrehte Normalen. Direktes Sonnenlicht macht diese Flächen als scheinbare Löcher sichtbar.
-
-Die dauerhafte Lösung sind offline erzeugte, watertichte Low-Poly-GLBs mit neu berechneten Normalen.
-Dadurch bleiben drei Instancing-Batches und der aktuelle Laufzeitpfad erhalten. Als kurzfristige Variante
-blieben bei 75 % Retention alle drei Testgeometrien geschlossen; diese Änderung erhöht die Stein-Dreiecke
-jedoch ungefähr um Faktor fünf und muss deshalb erneut gegen Desktop und physische PICO 4 gemessen werden.
-`DoubleSide`, mehr Ambient Light oder `flatShading` beheben die beschädigte Topologie nicht.
+Die frühere `SimplifyModifier`-Reduktion auf 22 % öffnete bei den texturierten EZ-Tree-Steinen 227, 174
+und 218 geometrische Kanten. Sie wurde vollständig entfernt. Drei native Quaternius-Low-Poly-Steine mit
+244, 162 und 342 Dreiecken bleiben in ihrer geschlossenen Quelltopologie unverändert. Ein Browser-Test
+prüft alle drei GLBs positionsbasiert auf null offene Kanten, bevor Performance-Ergebnisse akzeptiert werden.
 
 ## Verbleibende externe Gates
 

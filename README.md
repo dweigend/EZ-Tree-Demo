@@ -100,7 +100,7 @@ Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder verschwinde
 
 - Three.js
 - [EZ-Tree](https://github.com/dgreenheck/ez-tree), MIT License, Daniel Greenheck
-- [Poly Pizza](https://poly.pizza/), Grass Patch und Tuft of grass, CC BY 3.0
+- [Poly Pizza](https://poly.pizza/), Grass Patch und Tuft of grass (CC BY 3.0) sowie drei Quaternius-Rocks (CC0 1.0)
 
 Vegetations-, Stein- und Bodenassets werden lokal ausgeliefert. Herkunft und Lizenzen sind unter
 [`public/assets/ATTRIBUTION.md`](public/assets/ATTRIBUTION.md) dokumentiert.

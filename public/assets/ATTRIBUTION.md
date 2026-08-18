@@ -10,9 +10,6 @@ Source: [dgreenheck/ez-tree](https://github.com/dgreenheck/ez-tree), revision
 
 The following files are copied from `src/app/public/` in the official repository:
 
-- `rocks/rock1.glb`
-- `rocks/rock2.glb`
-- `rocks/rock3.glb`
 - `terrain/grass.jpg`
 - `terrain/dirt_color.jpg`
 - `terrain/dirt_normal.jpg`
@@ -24,6 +21,15 @@ license is included in `licenses/EZ-TREE-MIT.txt`. Texture provenance is documen
 Tree bark and leaf textures are consumed from the installed `@dgreenheck/ez-tree` package rather
 than duplicated here. Bark textures originate from ambientCG and are CC0; leaf textures are
 covered by the EZ-Tree project license.
+
+## Poly Pizza rock assets
+
+- `rocks/rock1.glb`: ["Rock Medium" by Quaternius](https://poly.pizza/m/KZdEP3uUpa), CC0 1.0.
+- `rocks/rock2.glb`: ["Rock" by Quaternius](https://poly.pizza/m/4MUaQTcDdc), CC0 1.0.
+- `rocks/rock3.glb`: ["Rock Medium" by Quaternius](https://poly.pizza/m/s1OJ3bBzqc), CC0 1.0.
+
+All three files are unmodified source downloads. They contain 244, 162, and 342 triangles. Runtime code
+only normalises their diameter and instances them; it does not decimate or rewrite their watertight topology.
 
 ## Poly Pizza grass assets
 

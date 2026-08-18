@@ -13,7 +13,6 @@ import {
   Vector3,
   type InstancedMesh,
 } from 'three';
-import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import type { InstancedModelAsset, LandscapeAssets } from '../assets/landscape-assets';
 import { TERRAIN, VEGETATION } from '../config';
 import { createDynamicInstancedMesh, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
@@ -30,6 +29,7 @@ const UP = new Vector3(0, 1, 0);
 const WHITE = new Color('#ffffff');
 const ROCK_DARK = new Color('#9b9488');
 const ROCK_LIGHT = new Color('#c3b9a8');
+const ROCK_TARGET_DIAMETER = 2;
 
 export class GroundCoverSystem {
   public readonly group = new Group();
@@ -106,7 +106,7 @@ export class GroundCoverSystem {
     const materials = asset.materials.map(createRockMaterial);
     const material = materials.length === 1 ? materials[0]! : materials;
     const mesh = createDynamicInstancedMesh(
-      createLowPolyGeometry(asset.geometry, 0.22),
+      prepareRockGeometry(asset.geometry),
       material,
       VEGETATION.rockBatchCapacity,
     );
@@ -130,14 +130,17 @@ export class GroundCoverSystem {
   }
 }
 
-function createLowPolyGeometry(source: BufferGeometry, retainedFraction: number): BufferGeometry {
-  // Runtime decimation protects the current triangle budget, but 22% retention can open textured UV seams.
-  // Replace this with verified watertight offline LOD assets before increasing fidelity; see docs/HANDOFF.md.
-  const vertexCount = source.getAttribute('position').count;
-  const removeCount = Math.floor(vertexCount * (1 - retainedFraction));
-  try {
-    return new SimplifyModifier().modify(source, removeCount);
-  } catch {
-    return source.clone();
-  }
+function prepareRockGeometry(source: BufferGeometry): BufferGeometry {
+  const geometry = source.clone();
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  if (!bounds) throw new Error('Rock geometry has no bounds.');
+  const diameter = Math.max(bounds.max.x - bounds.min.x, bounds.max.z - bounds.min.z);
+  if (diameter <= Number.EPSILON) throw new Error('Rock geometry has no horizontal extent.');
+  // Normalize once at startup; the source is already low-poly, so runtime decimation cannot reopen UV seams.
+  const scale = ROCK_TARGET_DIAMETER / diameter;
+  geometry.scale(scale, scale, scale);
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
 }
