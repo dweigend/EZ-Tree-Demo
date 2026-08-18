@@ -3,7 +3,7 @@
  * It exposes read-only runtime evidence and intentionally no mutation hooks.
  */
 
-import type { LandscapeDiagnostics } from './world/landscape-diagnostics';
+import type { LandscapeDiagnostics } from './world/world-runtime';
 
 declare global {
   interface Window {
