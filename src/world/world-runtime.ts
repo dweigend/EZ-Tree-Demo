@@ -5,7 +5,7 @@
 
 import { Clock, FogExp2, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
 import { disposeLandscapeAssets, type LandscapeAssets } from '../assets/landscape-assets';
-import { LANDSCAPE_VIEW, RENDERING, WORLD_SEED } from '../config';
+import { CONFIG, LANDSCAPE_VIEW, RENDERING, WORLD_SEED } from '../config';
 import { FlightControls } from '../controls/flight-controls';
 import { hashString } from '../core/random';
 import { GrassSystem } from '../grass/grass-system';
@@ -19,27 +19,13 @@ import { ForestDistribution } from '../vegetation/forest-distribution';
 import { GroundCoverDistribution } from '../vegetation/ground-cover-distribution';
 import { GroundCoverSystem } from '../vegetation/ground-cover-system';
 import { WindField } from '../wind/wind-field';
+import {
+  createLandscapeDiagnostics,
+  formatLandscapeDiagnostics,
+  type LandscapeDiagnostics,
+} from './landscape-diagnostics';
 
-export interface LandscapeDiagnostics {
-  fps: number;
-  frameTimeMs: number;
-  peakFrameTimeMs: number;
-  drawCalls: number;
-  triangles: number;
-  trees: number;
-  grassBlades: number;
-  flowers: number;
-  rocks: number;
-  activeChunks: number;
-  detailedChunks: number;
-  geometries: number;
-  textures: number;
-  position: readonly [number, number, number];
-  speed: number;
-  viewDistance: number;
-  relief: number;
-  seed: string;
-}
+export type { LandscapeDiagnostics } from './landscape-diagnostics';
 
 export class WorldRuntime {
   private readonly scene = new Scene();
@@ -80,7 +66,7 @@ export class WorldRuntime {
     const groundCoverDistribution = new GroundCoverDistribution(this.heightField, hashString(`${WORLD_SEED}:ground-cover`));
     this.groundCover = new GroundCoverSystem(assets, groundCoverDistribution, this.wind.uniforms);
     this.scene.add(this.terrain.group, this.trees.group, this.grass.mesh, this.groundCover.group);
-    this.diagnostics = createInitialDiagnostics();
+    this.diagnostics = createLandscapeDiagnostics(CONFIG);
     window.__LANDSCAPE_DIAGNOSTICS__ = this.diagnostics;
     window.addEventListener('resize', this.resize);
   }
@@ -192,7 +178,7 @@ export class WorldRuntime {
       relief: LANDSCAPE_VIEW.relief,
     });
     this.peakFrameTime = 0;
-    this.diagnosticsElement.textContent = formatDiagnostics(this.diagnostics);
+    this.diagnosticsElement.textContent = formatLandscapeDiagnostics(this.diagnostics);
   }
 
   private readonly resize = (): void => {
@@ -201,32 +187,4 @@ export class WorldRuntime {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDERING.pixelRatioCap));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   };
-}
-
-function createInitialDiagnostics(): LandscapeDiagnostics {
-  return {
-    fps: 0,
-    frameTimeMs: 0,
-    peakFrameTimeMs: 0,
-    drawCalls: 0,
-    triangles: 0,
-    trees: 0,
-    grassBlades: 0,
-    flowers: 0,
-    rocks: 0,
-    activeChunks: 0,
-    detailedChunks: 0,
-    geometries: 0,
-    textures: 0,
-    position: [0, 0, 0],
-    speed: 0,
-    viewDistance: LANDSCAPE_VIEW.distance,
-    relief: LANDSCAPE_VIEW.relief,
-    seed: WORLD_SEED,
-  };
-}
-
-function formatDiagnostics(value: LandscapeDiagnostics): string {
-  const triangles = Math.round(value.triangles / 1_000);
-  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.flowers} flowers · ${value.rocks} rocks · ${value.activeChunks}/${value.detailedChunks} chunks · ${value.viewDistance} m · r${value.relief.toFixed(2)}`;
 }
