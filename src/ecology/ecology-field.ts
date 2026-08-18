@@ -124,9 +124,14 @@ export class EcologyField {
   }
 
   private getFeatureInfluence(x: number, z: number, feature: MacroFeatureSample): number {
-    const local = rotateIntoFeature(x - feature.centerX, z - feature.centerZ, feature.rotation);
-    if (feature.kind === 'lake') return getLakeInfluence(local.x, local.z, feature);
-    if (feature.kind === 'hedge') return getHedgeInfluence(local.x, local.z, feature);
+    const offsetX = x - feature.centerX;
+    const offsetZ = z - feature.centerZ;
+    const cosine = Math.cos(feature.rotation);
+    const sine = Math.sin(feature.rotation);
+    const localX = offsetX * cosine + offsetZ * sine;
+    const localZ = -offsetX * sine + offsetZ * cosine;
+    if (feature.kind === 'lake') return getLakeInfluence(localX, localZ, feature);
+    if (feature.kind === 'hedge') return getHedgeInfluence(localX, localZ, feature);
     return 0;
   }
 
@@ -157,12 +162,6 @@ function getFeatureKind(rank: number): MacroFeatureKind {
   if (rank < LAKE_PROBABILITY) return 'lake';
   if (rank < HEDGE_PROBABILITY) return 'hedge';
   return 'none';
-}
-
-function rotateIntoFeature(x: number, z: number, rotation: number): { x: number; z: number } {
-  const cosine = Math.cos(rotation);
-  const sine = Math.sin(rotation);
-  return { x: x * cosine + z * sine, z: -x * sine + z * cosine };
 }
 
 function getLakeInfluence(x: number, z: number, feature: MacroFeatureSample): number {
