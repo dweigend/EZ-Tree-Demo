@@ -3,12 +3,16 @@
  * Rebuilds only with terrain streaming; no Object3D or visibility test is created per tree per frame.
  */
 
-import { Color, DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Matrix4, Object3D, Quaternion, Vector3 } from 'three';
+import { Color, InstancedBufferAttribute, Matrix4, Object3D, Quaternion, Vector3, type InstancedMesh } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
-import { createDynamicScalarAttribute, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
+import {
+  createDynamicInstancedMesh,
+  createDynamicScalarAttribute,
+  finaliseInstancedMesh,
+} from '../rendering/update-instanced-attributes';
 import { ChunkPrefetchQueue, getChunkIndex, getChunkViewWindow, type HorizontalDirection } from '../world/chunk-coordinates';
 import { acceptsTreeDensity, type ForestDistribution, type TreePlacement } from './forest-distribution';
-import type { TreeGeometryPair, TreeLod, TreeVariant } from './tree-factory';
+import type { TreeLod, TreeVariant } from './tree-factory';
 import type { TreeSpecies } from './tree-templates';
 
 interface TreeBatch {
@@ -150,8 +154,12 @@ export class TreeSystem {
 
   private createBatch(variant: TreeVariant, lod: TreeLod): TreeBatch {
     const geometry = variant.lods[lod];
-    const branches = this.createInstancedMesh(geometry.branches, variant.branchMaterial);
-    const leaves = this.createInstancedMesh(geometry.leaves, variant.leafMaterial);
+    const branches = createDynamicInstancedMesh(
+      geometry.branches,
+      variant.branchMaterial,
+      VEGETATION.treeBatchCapacity,
+    );
+    const leaves = createDynamicInstancedMesh(geometry.leaves, variant.leafMaterial, VEGETATION.treeBatchCapacity);
     const phase = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
     const strength = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
     leaves.geometry.setAttribute('aWindPhase', phase);
@@ -160,13 +168,6 @@ export class TreeSystem {
     leaves.castShadow = VEGETATION.leafShadows && lod === 'near';
     this.group.add(branches, leaves);
     return { branches, leaves, phase, strength, count: 0 };
-  }
-
-  private createInstancedMesh(geometry: TreeGeometryPair['branches'], material: TreeVariant['branchMaterial']): InstancedMesh {
-    const mesh = new InstancedMesh(geometry, material, VEGETATION.treeBatchCapacity);
-    mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    mesh.count = 0;
-    return mesh;
   }
 
   private resetBatches(): void {

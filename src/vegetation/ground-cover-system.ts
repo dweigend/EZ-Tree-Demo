@@ -6,18 +6,17 @@
 import {
   BufferGeometry,
   Color,
-  DynamicDrawUsage,
   Group,
-  InstancedMesh,
   Material,
   Matrix4,
   Quaternion,
   Vector3,
+  type InstancedMesh,
 } from 'three';
 import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import type { InstancedModelAsset, LandscapeAssets } from '../assets/landscape-assets';
 import { TERRAIN, VEGETATION } from '../config';
-import { finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
+import { createDynamicInstancedMesh, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
 import { ChunkPrefetchQueue, getChunkIndex, getChunkViewWindow, type HorizontalDirection } from '../world/chunk-coordinates';
 import type { GroundCoverDistribution, RockPlacement } from './ground-cover-distribution';
 import { createRockMaterial } from './ground-cover-materials';
@@ -105,23 +104,16 @@ export class GroundCoverSystem {
 
   private createRockBatch(asset: InstancedModelAsset): GroundCoverBatch {
     const materials = asset.materials.map(createRockMaterial);
-    const mesh = this.createMesh(createLowPolyGeometry(asset.geometry, 0.22), materials, VEGETATION.rockBatchCapacity);
+    const material = materials.length === 1 ? materials[0]! : materials;
+    const mesh = createDynamicInstancedMesh(
+      createLowPolyGeometry(asset.geometry, 0.22),
+      material,
+      VEGETATION.rockBatchCapacity,
+    );
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.group.add(mesh);
     return { mesh, count: 0 };
-  }
-
-  private createMesh(
-    geometry: BufferGeometry,
-    materials: Material[],
-    capacity: number,
-  ): InstancedMesh<BufferGeometry, Material | Material[]> {
-    const material = materials.length === 1 ? materials[0]! : materials;
-    const mesh = new InstancedMesh<BufferGeometry, Material | Material[]>(geometry, material, capacity);
-    mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    mesh.count = 0;
-    return mesh;
   }
 
   private resetBatches(): void {

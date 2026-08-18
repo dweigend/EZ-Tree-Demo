@@ -5,23 +5,26 @@
 
 import {
   Color,
-  DynamicDrawUsage,
   BufferGeometry,
   Group,
   InstancedBufferAttribute,
-  InstancedMesh,
   MathUtils,
   Matrix4,
   MeshPhongMaterial,
   type MeshStandardMaterial,
   Quaternion,
   Vector3,
+  type InstancedMesh,
 } from 'three';
 import { VEGETATION } from '../config';
 import type { InstancedModelAsset } from '../assets/landscape-assets';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
 import { getGroundCover, getWoodland } from '../ecology/landscape-ecology';
-import { createDynamicScalarAttribute, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
+import {
+  createDynamicInstancedMesh,
+  createDynamicScalarAttribute,
+  finaliseInstancedMesh,
+} from '../rendering/update-instanced-attributes';
 import type { HeightField } from '../core/height-field';
 import type { WindUniforms } from '../wind/wind-field';
 import { createGrassMaterial, prepareGrassGeometry, prepareMeadowGeometry } from './grass-material';
@@ -274,13 +277,11 @@ export class GrassSystem {
     if (source.materials.length === 0) throw new Error('Grass asset has no material.');
     const grassMaterials = source.materials.map((material) => createGrassMaterial(material, wind));
     const material = grassMaterials.length === 1 ? grassMaterials[0]! : grassMaterials;
-    const mesh = new InstancedMesh<BufferGeometry, MeshPhongMaterial | MeshPhongMaterial[]>(
+    const mesh = createDynamicInstancedMesh(
       source.geometry,
       material,
       source.capacity,
     );
-    mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    mesh.count = 0;
     mesh.receiveShadow = true;
     return { mesh, rotation, phase, strength };
   }

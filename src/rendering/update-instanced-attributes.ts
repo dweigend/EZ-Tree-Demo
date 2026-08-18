@@ -1,9 +1,26 @@
 /**
- * Creates dynamic scalar attributes and finalises populated InstancedMesh buffers.
+ * Creates fixed-capacity InstancedMesh batches and finalises their populated buffer prefixes.
  * It follows Three.js update-range and bounding-sphere requirements without owning render-system state.
  */
 
-import { DynamicDrawUsage, InstancedBufferAttribute, type BufferAttribute, type InstancedMesh } from 'three';
+import {
+  DynamicDrawUsage,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  type BufferAttribute,
+  type BufferGeometry,
+  type Material,
+} from 'three';
+
+export function createDynamicInstancedMesh<
+  TGeometry extends BufferGeometry,
+  TMaterial extends Material | Material[],
+>(geometry: TGeometry, material: TMaterial, capacity: number): InstancedMesh<TGeometry, TMaterial> {
+  const mesh = new InstancedMesh(geometry, material, capacity);
+  mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+  mesh.count = 0;
+  return mesh;
+}
 
 export function createDynamicScalarAttribute(capacity: number): InstancedBufferAttribute {
   return new InstancedBufferAttribute(new Float32Array(capacity), 1).setUsage(DynamicDrawUsage);

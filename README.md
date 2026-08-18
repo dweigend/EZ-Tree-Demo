@@ -58,6 +58,10 @@ Reproduzierbare Flugmessungen laufen ohne Pointer-Lock über `benchmark=desktop-
 - `rendering/`: WebGL2, Color Management, atmosphärischer Himmel, Fog und begrenzte Schatten
 - `world/`: explizite Frame-Reihenfolge und Lifecycle
 
+Alle mehrfach vorkommenden Modellassets werden pro Geometrie-/Material-/LOD-Kombination in einem
+fest dimensionierten `InstancedMesh` gebündelt. Nur Matrix, Farbe und Windwerte variieren je Instanz.
+Terrain-Chunks bleiben recycelte Einzelmeshes, da jeder Chunk eigene Vertexhöhen und Bodengewichte trägt.
+
 Wiese, Matsch, drei Waldböden, Fels und Geröllwege werden aus Höhe, Hang, Feuchte, Woodland und
 verzerrten Weltkoordinaten gewichtet. Die Gewichte entstehen nur bei einer Chunk-Zuweisung. Desktop
 und PICO mischen höchstens zwei Albedo-Samples; PICO liest nur die dominante Normalmap. Es entsteht
