@@ -15,9 +15,10 @@ test('terrain palette maps seven ordered slots to both atlas sizes', async () =>
     'rock',
     'trail',
   ]);
-  expect(palette.roughness).toHaveLength(7);
+  expect(palette.roughness).toBeUndefined();
   expect(palette.tileMeters).toEqual([14, 10, 8, 10, 12, 42, 8]);
   expect(palette.atlasColumns).toBe(3);
   expect(palette.atlasSize).toEqual({ desktop: 3072, pico90: 1536 });
+  expect(palette.surfaceEncoding).toBe('normal-rgb-roughness-a');
   expect(palette.license).toBe('CC0-1.0');
 });

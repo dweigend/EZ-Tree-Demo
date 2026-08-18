@@ -43,15 +43,6 @@
       "author": "Amal Kumar"
     }
   ],
-  "roughness": [
-    0.9451,
-    0.9765,
-    0.8118,
-    0.9412,
-    0.9255,
-    0.9608,
-    0.6549
-  ],
   "tileMeters": [
     14,
     10,
@@ -67,6 +58,7 @@
     "pico90": 1536
   },
   "gutterPixels": 8,
+  "surfaceEncoding": "normal-rgb-roughness-a",
   "license": "CC0-1.0",
   "licenseUrl": "https://polyhaven.com/license"
 }

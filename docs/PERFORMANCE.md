@@ -62,10 +62,12 @@ sind aber kein Ersatz für eine XR-Session auf dem Headset.
   richtungsgewichtete Auswahl bei interaktivem Flug korrekt, ohne per-frame Objekt-Culling einzuführen.
 - Die Bodenzonen werden nur beim Chunk-Resampling aus Höhe, Hang, Feuchte und Woodland berechnet.
   Der Geröllweg erhält im Fragment-Shader nur eine analytische Kantenmaske. Draw Calls und Anzahl der
-  Material-Samples bleiben trotz sieben Zonen unverändert: zwei Albedo- und auf Desktop zwei Normalmaps,
-  auf PICO eine Normalmap.
+  Material-Samples bleiben trotz sieben Zonen kompakt: zwei Albedo- und eine dominante Surface-Map.
+- Die vorhandenen Normal-Atlas-Samples liefern zusätzlich die räumliche Roughness aus ihrem Alpha-Kanal.
+  Gespiegelte UVs korrigieren dabei auch die Tangentenrichtung der Normalen. Es entstehen
+  weder zusätzliche Texture-Samples noch Geometrie für Displacement.
 - Die 3x3-Atlanten belegen dekodiert etwa 72 MiB auf Desktop und 18 MiB auf PICO. Die ausgelieferten
-  WebP-Dateien umfassen zusammen rund 6,7 MiB. KTX2 bleibt erst dann sinnvoll, wenn reale PICO-Messungen
+  WebP-Dateien umfassen zusammen rund 10,1 MiB. KTX2 bleibt erst dann sinnvoll, wenn reale PICO-Messungen
   Texture-Speicher oder Ladezeit als Engpass bestätigen.
 
 ### Kontrolllauf mit sieben Bodenzonen

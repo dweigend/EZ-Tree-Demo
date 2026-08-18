@@ -19,20 +19,23 @@ import {
 import { Sky } from 'three/addons/objects/Sky.js';
 import { RENDERING } from '../config';
 
+const SUN_POLAR_ANGLE = MathUtils.degToRad(68);
+const SUN_AZIMUTH = MathUtils.degToRad(210);
+
 export class Environment {
   private readonly group = new Group();
   private readonly sky = new Sky();
-  private readonly sun = new DirectionalLight('#fff1d2', 3.1);
+  private readonly sun = new DirectionalLight('#fff0cf', 4.5);
   private readonly target = new Object3D();
   private readonly sunDirection: Vector3;
 
   public constructor(scene: Scene) {
-    this.sunDirection = new Vector3().setFromSpherical(new Spherical(1, MathUtils.degToRad(64), MathUtils.degToRad(325)));
+    this.sunDirection = new Vector3().setFromSpherical(new Spherical(1, SUN_POLAR_ANGLE, SUN_AZIMUTH));
     this.configureSky();
     this.configureSun();
     this.group.add(this.sky, this.sun, this.target);
-    this.group.add(new HemisphereLight('#dcebf0', '#596848', 1.7));
-    this.group.add(new AmbientLight('#b7c6be', 0.52));
+    this.group.add(new HemisphereLight('#dcebf0', '#596848', 0.95));
+    this.group.add(new AmbientLight('#b7c6be', 0.16));
     scene.background = new Color('#a9bec0');
     scene.add(this.group);
   }

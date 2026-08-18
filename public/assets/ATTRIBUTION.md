@@ -50,7 +50,8 @@ The source maps under `assets/source/terrain-materials/polyhaven/` and the deriv
 
 All seven assets are licensed under [CC0](https://polyhaven.com/license). The checked-in source
 manifest preserves the exact download URLs and material order. The runtime atlases contain resized
-base-colour and normal maps; median roughness values are stored in `terrain/palette.json`.
+base-colour maps. Their surface atlases pack tangent-space normals into RGB and the corresponding
+spatial roughness maps into alpha, preserving both properties without another runtime texture sample.
 
 ## Draco decoder
 

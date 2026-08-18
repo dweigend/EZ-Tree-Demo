@@ -26,7 +26,6 @@ export interface InstancedModelAsset {
 export interface GroundTextureAssets {
   readonly albedoAtlas: Texture;
   readonly normalAtlas: Texture;
-  readonly roughness: TerrainLayerValues;
   readonly tileMeters: TerrainLayerValues;
   readonly atlasSize: number;
 }
@@ -92,7 +91,6 @@ async function loadGroundTextures(): Promise<GroundTextureAssets> {
   return {
     albedoAtlas,
     normalAtlas,
-    roughness: metadata.roughness,
     tileMeters: metadata.tileMeters,
     atlasSize: metadata.atlasSize[QUALITY_PROFILE.name],
   };
@@ -108,10 +106,10 @@ async function loadGroundTexture(loader: TextureLoader, url: string, colorTextur
 }
 
 interface TerrainPaletteMetadata {
-  readonly roughness: TerrainLayerValues;
   readonly tileMeters: TerrainLayerValues;
   readonly atlasColumns: 3;
   readonly atlasSize: Readonly<Record<'desktop' | 'pico90', number>>;
+  readonly surfaceEncoding: 'normal-rgb-roughness-a';
 }
 
 async function loadTerrainPalette(url: string): Promise<TerrainPaletteMetadata> {
@@ -126,9 +124,9 @@ function isTerrainPaletteMetadata(value: unknown): value is TerrainPaletteMetada
   if (!isRecord(value)) return false;
   const candidate = value as Partial<TerrainPaletteMetadata>;
   return (
-    isTerrainLayerValues(candidate.roughness) &&
     isTerrainLayerValues(candidate.tileMeters) &&
     candidate.atlasColumns === 3 &&
+    candidate.surfaceEncoding === 'normal-rgb-roughness-a' &&
     isAtlasSize(candidate.atlasSize)
   );
 }

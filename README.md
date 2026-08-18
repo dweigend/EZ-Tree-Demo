@@ -64,8 +64,9 @@ Terrain-Chunks bleiben recycelte Einzelmeshes, da jeder Chunk eigene Vertexhöhe
 
 Wiese, Matsch, drei Waldböden, Fels und Geröllwege werden aus Höhe, Hang, Feuchte, Woodland und
 verzerrten Weltkoordinaten gewichtet. Die Gewichte entstehen nur bei einer Chunk-Zuweisung. Desktop
-und PICO mischen höchstens zwei Albedo-Samples; PICO liest nur die dominante Normalmap. Es entsteht
-keine Per-Frame-CPU-Arbeit.
+und PICO mischen höchstens zwei Albedo-Samples und lesen nur die dominante Surface-Map. Es entsteht
+keine Per-Frame-CPU-Arbeit. Die Surface-Atlanten speichern Normalen in RGB und die vollständige
+Roughness-Map in Alpha. Eine niedrig stehende gerichtete Sonne macht Relief und Schatten sichtbar.
 
 ## Terrain-Materialien bauen
 

@@ -24,7 +24,6 @@ interface QualityProfile {
   readonly shadowDistance: number;
   readonly shadowMapSize: number;
   readonly leafShadows: boolean;
-  readonly blendTerrainNormals: boolean;
   readonly xrFramebufferScale: number;
   readonly xrFoveation: number;
 }
@@ -46,7 +45,6 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
     shadowDistance: 170,
     shadowMapSize: 1_536,
     leafShadows: true,
-    blendTerrainNormals: true,
     xrFramebufferScale: 1,
     xrFoveation: 0,
   },
@@ -66,7 +64,6 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
     shadowDistance: 90,
     shadowMapSize: 1_024,
     leafShadows: false,
-    blendTerrainNormals: false,
     xrFramebufferScale: 0.75,
     xrFoveation: 1,
   },
@@ -119,7 +116,6 @@ export const RENDERING = {
   pixelRatioCap: QUALITY_PROFILE.pixelRatioCap,
   shadowDistance: QUALITY_PROFILE.shadowDistance,
   shadowMapSize: QUALITY_PROFILE.shadowMapSize,
-  blendTerrainNormals: QUALITY_PROFILE.blendTerrainNormals,
   xrEnabled: QUALITY_PROFILE.name === 'pico90',
   xrFramebufferScale: QUALITY_PROFILE.xrFramebufferScale,
   xrFoveation: QUALITY_PROFILE.xrFoveation,

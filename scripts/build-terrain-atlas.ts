@@ -1,6 +1,6 @@
 /**
  * Builds fixed 3x3 desktop and PICO atlases from the seven local Poly Haven materials.
- * Source downloads stay reproducible through the manifest; runtime receives only albedo, normal, and compact metadata.
+ * Source downloads stay reproducible through the manifest; runtime receives albedo plus packed normal/roughness atlases.
  */
 
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -21,16 +21,18 @@ interface MaterialManifest {
   readonly materials: readonly MaterialSource[];
 }
 
+type AtlasMap = 'albedo' | 'surface';
+
 interface AtlasJob {
   readonly materials: readonly MaterialSource[];
-  readonly mapName: 'basecolor.jpg' | 'normal.jpg';
+  readonly map: AtlasMap;
   readonly atlasSize: number;
   readonly output: string;
 }
 
 interface CellJob {
   readonly material: MaterialSource;
-  readonly mapName: AtlasJob['mapName'];
+  readonly map: AtlasMap;
   readonly cellSize: number;
   readonly contentSize: number;
 }
@@ -61,17 +63,17 @@ async function buildProfileAtlas(
 ): Promise<void> {
   const profileRoot = path.join(runtimeRoot, profile === 'desktop' ? 'palette-desktop' : 'palette-pico');
   await mkdir(profileRoot, { recursive: true });
-  await buildAtlas({ materials, mapName: 'basecolor.jpg', atlasSize, output: path.join(profileRoot, 'albedo.webp') });
-  await buildAtlas({ materials, mapName: 'normal.jpg', atlasSize, output: path.join(profileRoot, 'normal.webp') });
+  await buildAtlas({ materials, map: 'albedo', atlasSize, output: path.join(profileRoot, 'albedo.webp') });
+  await buildAtlas({ materials, map: 'surface', atlasSize, output: path.join(profileRoot, 'normal.webp') });
 }
 
 async function buildAtlas(job: AtlasJob): Promise<void> {
   const cellSize = job.atlasSize / ATLAS_COLUMNS;
   const contentSize = cellSize - ATLAS_GUTTER * 2;
   const cells = await Promise.all(
-    job.materials.map((material) => buildCell({ material, mapName: job.mapName, cellSize, contentSize })),
+    job.materials.map((material) => buildCell({ material, map: job.map, cellSize, contentSize })),
   );
-  const filler = await buildFillerCell(job.mapName, cellSize);
+  const filler = await buildFillerCell(job.map, cellSize);
   while (cells.length < ATLAS_COLUMNS ** 2) cells.push(filler);
   const rows: string[] = [];
   for (let row = 0; row < ATLAS_COLUMNS; row += 1) {
@@ -84,10 +86,22 @@ async function buildAtlas(job: AtlasJob): Promise<void> {
 }
 
 async function buildCell(job: CellJob): Promise<string> {
-  const source = path.join(sourceRoot, job.material.asset, job.mapName);
-  const output = path.join(tempRoot, `${job.material.asset}-${job.mapName}-${job.cellSize}.png`);
+  const materialRoot = path.join(sourceRoot, job.material.asset);
+  const sources =
+    job.map === 'albedo'
+      ? [path.join(materialRoot, 'basecolor.jpg')]
+      : [
+          path.join(materialRoot, 'normal.jpg'),
+          path.join(materialRoot, 'roughness.jpg'),
+          '-alpha',
+          'off',
+          '-compose',
+          'CopyOpacity',
+          '-composite',
+        ];
+  const output = path.join(tempRoot, `${job.material.asset}-${job.map}-${job.cellSize}.png`);
   await runMagick([
-    source,
+    ...sources,
     '-resize',
     `${job.contentSize}x${job.contentSize}!`,
     '-virtual-pixel',
@@ -106,24 +120,21 @@ async function buildCell(job: CellJob): Promise<string> {
   return output;
 }
 
-async function buildFillerCell(mapName: string, cellSize: number): Promise<string> {
+async function buildFillerCell(mapName: AtlasMap, cellSize: number): Promise<string> {
   const output = path.join(tempRoot, `filler-${mapName}-${cellSize}.png`);
-  const color = mapName === 'normal.jpg' ? '#8080ff' : '#000000';
+  const color = mapName === 'surface' ? '#8080ffff' : '#000000';
   await runMagick(['-size', `${cellSize}x${cellSize}`, `xc:${color}`, output]);
   return output;
 }
 
 async function writePaletteMetadata(source: MaterialManifest): Promise<void> {
-  const roughness = await Promise.all(
-    source.materials.map((material) => readMedianRoughness(path.join(sourceRoot, material.asset, 'roughness.jpg'))),
-  );
   const metadata = {
     slots: source.materials.map(({ slot, asset, name, author }) => ({ slot, source: asset, name, author })),
-    roughness,
     tileMeters: source.materials.map((material) => material.tileMeters),
     atlasColumns: ATLAS_COLUMNS,
     atlasSize: ATLAS_PROFILES,
     gutterPixels: ATLAS_GUTTER,
+    surfaceEncoding: 'normal-rgb-roughness-a',
     license: source.license,
     licenseUrl: source.licenseUrl,
   };
@@ -137,11 +148,6 @@ async function validateMaps(materials: readonly MaterialSource[]): Promise<void>
       await runMagick(['identify', '-quiet', path.join(sourceRoot, material.asset, mapName)]);
     }
   }
-}
-
-async function readMedianRoughness(file: string): Promise<number> {
-  const value = await runMagick([file, '-colorspace', 'Gray', '-format', '%[fx:median]', 'info:']);
-  return Number(Number(value.trim()).toFixed(4));
 }
 
 async function runMagick(arguments_: readonly string[]): Promise<string> {
