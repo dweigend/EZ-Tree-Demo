@@ -8,12 +8,10 @@ import { disposeLandscapeAssets, type LandscapeAssets } from '../assets/landscap
 import { CONFIG, LANDSCAPE_VIEW, RENDERING, WORLD_SEED } from '../config';
 import { FlightControls } from '../controls/flight-controls';
 import { hashString } from '../core/random';
-import { EcologyField } from '../ecology/ecology-field';
 import { GrassSystem } from '../grass/grass-system';
 import { createRenderer } from '../rendering/create-renderer';
 import { Environment } from '../rendering/environment';
 import { HeightField } from '../terrain/height-field';
-import { LakeLayer } from '../terrain/lake-layer';
 import { TerrainSystem } from '../terrain/terrain-system';
 import { createTreeVariants } from '../trees/tree-factory';
 import { TreeSystem } from '../trees/tree-system';
@@ -34,12 +32,7 @@ export class WorldRuntime {
   private readonly camera = new PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, RENDERING.cameraFar);
   private readonly renderer: WebGLRenderer = createRenderer();
   private readonly clock = new Clock();
-  private readonly ecologyField = new EcologyField(WORLD_SEED);
-  private readonly heightField = new HeightField(
-    WORLD_SEED,
-    LANDSCAPE_VIEW.relief,
-    CONFIG.features.lakes ? this.ecologyField : undefined,
-  );
+  private readonly heightField = new HeightField(WORLD_SEED, LANDSCAPE_VIEW.relief);
   private readonly wind = new WindField();
   private readonly terrain: TerrainSystem;
   private readonly environment: Environment;
@@ -47,7 +40,6 @@ export class WorldRuntime {
   private readonly grass: GrassSystem;
   private readonly trees: TreeSystem;
   private readonly groundCover: GroundCoverSystem;
-  private readonly lakes: LakeLayer | null;
   private readonly diagnostics: LandscapeDiagnostics;
   private readonly viewDirection = new Vector3();
   private readonly vegetationDirection = new Vector3();
@@ -65,33 +57,15 @@ export class WorldRuntime {
     this.environment = new Environment(this.scene);
     this.positionCamera();
     mount.append(this.renderer.domElement);
-    this.terrain = new TerrainSystem(this.heightField, this.ecologyField, assets.ground);
+    this.terrain = new TerrainSystem(this.heightField, assets.ground);
     this.controls = new FlightControls(this.camera, this.renderer.domElement);
-    this.grass = new GrassSystem({
-      heightField: this.heightField,
-      ecologyField: this.ecologyField,
-      seed: hashString(`${WORLD_SEED}:grass`),
-      wind: this.wind.uniforms,
-      asset: assets.grass,
-    });
+    this.grass = new GrassSystem(this.heightField, hashString(`${WORLD_SEED}:grass`), this.wind.uniforms, assets.grass);
     const variants = createTreeVariants(this.wind.uniforms, hashString(`${WORLD_SEED}:tree-templates`));
-    const forest = new ForestDistribution(
-      this.heightField,
-      this.ecologyField,
-      hashString(`${WORLD_SEED}:forest`),
-      variants,
-    );
+    const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`), variants);
     this.trees = new TreeSystem(variants, forest);
-    const groundCoverDistribution = new GroundCoverDistribution(
-      this.heightField,
-      this.ecologyField,
-      hashString(`${WORLD_SEED}:ground-cover`),
-    );
+    const groundCoverDistribution = new GroundCoverDistribution(this.heightField, hashString(`${WORLD_SEED}:ground-cover`));
     this.groundCover = new GroundCoverSystem(assets, groundCoverDistribution, this.wind.uniforms);
-    this.lakes = CONFIG.features.lakes ? new LakeLayer(this.heightField, this.ecologyField) : null;
-    this.grass.mesh.visible = CONFIG.features.grass;
     this.scene.add(this.terrain.group, this.trees.group, this.grass.mesh, this.groundCover.group);
-    if (this.lakes) this.scene.add(this.lakes.mesh);
     this.diagnostics = createLandscapeDiagnostics(CONFIG);
     window.__LANDSCAPE_DIAGNOSTICS__ = this.diagnostics;
     window.addEventListener('resize', this.resize);
@@ -103,7 +77,6 @@ export class WorldRuntime {
     this.trees.rebuild(this.camera.position, this.viewDirection);
     this.grass.update(this.camera.position);
     this.groundCover.rebuild(this.camera.position, this.viewDirection);
-    this.lakes?.rebuild(this.camera.position, this.viewDirection);
     this.vegetationDirection.copy(this.viewDirection);
     this.environment.update(this.camera);
     this.clock.start();
@@ -118,7 +91,6 @@ export class WorldRuntime {
     this.trees.dispose();
     this.grass.dispose();
     this.groundCover.dispose();
-    this.lakes?.dispose();
     this.environment.dispose();
     disposeLandscapeAssets(this.assets);
     this.renderer.dispose();
@@ -135,10 +107,9 @@ export class WorldRuntime {
     this.trees.prepareStreaming(this.camera.position, this.viewDirection);
     this.groundCover.prepareStreaming(this.camera.position, this.viewDirection);
     const terrainChanged = this.terrain.update(this.camera.position, this.viewDirection);
-    if (terrainChanged) this.lakes?.rebuild(this.camera.position, this.viewDirection);
     const vegetationRefreshed = this.refreshVegetation(terrainChanged);
     if (!terrainChanged && !vegetationRefreshed) this.terrain.processStreaming();
-    if (CONFIG.features.grass) this.grass.update(this.camera.position);
+    this.grass.update(this.camera.position);
     this.wind.update(elapsedSeconds);
     this.environment.update(this.camera);
     this.renderer.render(this.scene, this.camera);
@@ -194,11 +165,9 @@ export class WorldRuntime {
       drawCalls: info.render.calls,
       triangles: info.render.triangles,
       trees: this.trees.visibleTreeCount,
-      hedgeShrubs: this.trees.visibleShrubCount,
       grassBlades: this.grass.visibleBladeCount,
       flowers: this.groundCover.visibleFlowerCount,
       rocks: this.groundCover.visibleRockCount,
-      lakes: this.lakes?.visibleLakeCount ?? 0,
       activeChunks: this.terrain.activeChunkCount,
       detailedChunks: this.trees.activeChunkCount,
       geometries: info.memory.geometries,

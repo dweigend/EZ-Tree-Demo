@@ -9,7 +9,7 @@ import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import { hashCoordinates } from '../core/random';
 import type { WindUniforms } from '../wind/wind-field';
 import { createBranchMaterial, createLeafMaterial } from './tree-materials';
-import { TREE_TEMPLATES, type TreeForm, type TreeSpecies, type TreeTemplate } from './tree-templates';
+import { TREE_TEMPLATES, type TreeSpecies, type TreeTemplate } from './tree-templates';
 
 export type TreeLod = 'near' | 'middle' | 'far';
 
@@ -20,7 +20,6 @@ export interface TreeGeometryPair {
 
 export interface TreeVariant {
   readonly species: TreeSpecies;
-  readonly form: TreeForm;
   readonly lods: Readonly<Record<TreeLod, TreeGeometryPair>>;
   readonly branchMaterial: MeshPhongMaterial;
   readonly leafMaterial: MeshPhongMaterial;
@@ -42,7 +41,6 @@ function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms)
   const leafSource = requirePhongMaterial(tree.leavesMesh.material);
   const variant = {
     species: template.species,
-    form: template.form,
     height: template.height,
     branchMaterial: createBranchMaterial(branchSource),
     leafMaterial: createLeafMaterial(leafSource, wind),
