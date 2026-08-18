@@ -6,6 +6,7 @@
 import { Group, Vector3 } from 'three';
 import type { GroundTextureAssets } from '../assets/landscape-assets';
 import { TERRAIN } from '../config';
+import type { EcologyField } from '../ecology/ecology-field';
 import {
   getChunkSquare,
   prioritiseChunkDirection,
@@ -33,11 +34,11 @@ export class TerrainSystem {
   private centerX = Number.NaN;
   private centerZ = Number.NaN;
 
-  public constructor(heightField: HeightField, textures: GroundTextureAssets) {
+  public constructor(heightField: HeightField, ecologyField: EcologyField, textures: GroundTextureAssets) {
     const material = createTerrainMaterial(textures);
     const diameter = TERRAIN.chunkRadius * 2 + 1;
     for (let index = 0; index < diameter * diameter; index += 1) {
-      const chunk = new TerrainChunk(heightField, material);
+      const chunk = new TerrainChunk(heightField, ecologyField, material);
       this.chunks.push(chunk);
       this.group.add(chunk.mesh);
     }

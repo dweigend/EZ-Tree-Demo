@@ -13,17 +13,29 @@ Produktionsprüfung:
 
 ```bash
 bun run check
+bun test
 bun run build
 ```
 
-Die Sichtweite lässt sich beim Start validiert zwischen 720 und 1500 Metern setzen. Fog,
-Terrain-Fenster und Vegetations-LOD werden gemeinsam daraus abgeleitet. `relief` skaliert
-die großen Hügel und Täler zwischen `0.7` und `1.4`:
+Alle öffentlichen Laufzeitparameter werden in `src/config.ts` validiert. Die Sichtweite liegt
+zwischen 720 und 1500 Metern; Fog, Terrain-Fenster und Vegetations-LOD werden daraus abgeleitet.
+`relief`, `forestDensity` und `grassDensity` verändern die Landschaft, ohne Renderbudgets
+aufzuheben:
 
 ```text
 http://localhost:5173/?distance=900
 http://localhost:5173/?distance=1200&fog=0.0014
 http://localhost:5173/?distance=900&relief=1.25
+http://localhost:5173/?forestDensity=1.25&grassDensity=0.8
+```
+
+Mit `seed` lässt sich eine andere deterministische Welt wählen. Die Feature-Parameter `trees`,
+`grass`, `flowers`, `rocks`, `hedges`, `lakes` und `surface` folgen einer einfachen Regel:
+Nur der Wert `0` deaktiviert ein Feature. Ein Feature wird wirksam, sobald sein Besitzer im
+`WorldRuntime` verdrahtet ist; eigenständige Render-Layer aktivieren sich nicht selbst.
+
+```text
+http://localhost:5173/?seed=meine-welt&rocks=0&lakes=0
 ```
 
 ## Steuerung
@@ -38,7 +50,8 @@ http://localhost:5173/?distance=900&relief=1.25
 ## Architektur
 
 - `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und weltkoordinatenbasierte Gras-Erde-Mischung
-- `trees/`: acht offizielle kleine und mittlere EZ-Tree-Preset-Templates in globalen Instancing-Batches und drei LOD-Bändern
+- `ecology/`: gemeinsame deterministische Habitatmasken und Makroelemente ohne Rendering
+- `trees/`: acht Baum- und zwei Busch-Templates aus offiziellen EZ-Tree-Presets in globalen Instancing-Batches und drei LOD-Bändern
 - `vegetation/`: deterministische Wald-, Blumen- und Steinverteilung; sechs globale Ground-Cover-Batches
 - `grass/`: ein kamera-zentriertes Instancing-Batch mit Distanz-Ausdünnung und inkrementellem Aufbau
 - `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume, Gras und Blumen
@@ -47,6 +60,9 @@ http://localhost:5173/?distance=900&relief=1.25
 - `world/`: explizite Frame-Reihenfolge und Lifecycle
 
 Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder verschwinden in abgestimmtem Fog und Himmel. Das Terrain behält ein vollständiges Sicherheitsfenster um die Kamera. Vegetation nutzt darin einen vollen 3×3-Kern plus einen breiten Vorwärtssektor; weit hinter der Blickrichtung werden nur kleine Assets ausgelassen. Wald- und Ground-Cover-Daten werden vor Chunk-Wechseln in Blickrichtung priorisiert, während Gras- und Terrain-Aufbau ihre Arbeit über mehrere Frames verteilen.
+
+Der vollständige Einstieg mit Modulbesitz, Startup- und Frame-Fluss, CPU-/GPU-Grenzen und dem
+Vorgehen für neue Landschaftselemente steht in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Abhängigkeiten
 

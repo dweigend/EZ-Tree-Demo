@@ -47,6 +47,7 @@ const BARK_LIGHT = new Color('#f6e8d2');
 export class TreeSystem {
   public readonly group = new Object3D();
   public visibleTreeCount = 0;
+  public visibleShrubCount = 0;
   public activeChunkCount = 0;
   private readonly batches: TreeBatch[][];
   private readonly transform = new Matrix4();
@@ -120,7 +121,8 @@ export class TreeSystem {
     if (!variant || !batch || batch.count >= VEGETATION.treeBatchCapacity) return;
     this.writeInstance(batch, variant, placement);
     batch.count += 1;
-    this.visibleTreeCount += 1;
+    if (placement.kind === 'shrub') this.visibleShrubCount += 1;
+    else this.visibleTreeCount += 1;
   }
 
   private writeInstance(batch: TreeBatch, variant: TreeVariant, placement: TreePlacement): void {
@@ -176,6 +178,7 @@ export class TreeSystem {
 
   private resetBatches(): void {
     this.visibleTreeCount = 0;
+    this.visibleShrubCount = 0;
     for (const batches of this.batches) for (const batch of batches) batch.count = 0;
   }
 

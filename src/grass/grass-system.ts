@@ -4,9 +4,9 @@
  */
 
 import {
+  BufferGeometry,
   Color,
   DynamicDrawUsage,
-  BufferGeometry,
   InstancedBufferAttribute,
   InstancedMesh,
   MathUtils,
@@ -15,18 +15,22 @@ import {
   Quaternion,
   Vector3,
 } from 'three';
-import { VEGETATION } from '../config';
 import type { InstancedModelAsset } from '../assets/landscape-assets';
+import { VEGETATION } from '../config';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
+import { createEcologySample, type EcologyField, type EcologySample } from '../ecology/ecology-field';
 import { updateAttributePrefix } from '../rendering/update-instanced-attributes';
 import type { HeightField } from '../terrain/height-field';
 import type { WindUniforms } from '../wind/wind-field';
 import { createGrassMaterial, prepareGrassGeometry } from './grass-material';
 
-const GRASS_DARK = new Color('#b1c08d');
-const GRASS_LIGHT = new Color('#ded39a');
+const GRASS_EDGE = new Color('#aeb886');
+const GRASS_CORE = new Color('#c9cf8f');
+const GRASS_HIGHLIGHT = new Color('#e0d49a');
 const IDENTITY_ROTATION = new Quaternion();
 const GRASS_CANDIDATES_PER_FRAME = 800;
+const MEADOW_DENSITY_END = 0.08;
+const MEADOW_DENSITY_MAX = 0.92;
 
 interface GrassBuildJob {
   readonly target: Vector3;
@@ -36,6 +40,30 @@ interface GrassBuildJob {
   currentX: number;
   currentZ: number;
   count: number;
+}
+
+interface GrassSystemDependencies {
+  readonly heightField: HeightField;
+  readonly ecologyField: EcologyField;
+  readonly seed: number;
+  readonly wind: WindUniforms;
+  readonly asset: InstancedModelAsset;
+}
+
+interface GrassPlacement {
+  x: number;
+  z: number;
+  height: number;
+  meadowStrength: number;
+  hash: number;
+}
+
+interface MutableTerrainSite {
+  x: number;
+  z: number;
+  height: number;
+  slope: number;
+  moisture: number;
 }
 
 export class GrassSystem {
@@ -51,14 +79,25 @@ export class GrassSystem {
   private readonly position = new Vector3();
   private readonly scale = new Vector3();
   private readonly color = new Color();
+  private readonly ecologySample: EcologySample = createEcologySample();
+  private readonly terrainSite: MutableTerrainSite = {
+    x: 0,
+    z: 0,
+    height: 0,
+    slope: 0,
+    moisture: 0,
+  };
+  private readonly placement: GrassPlacement = { x: 0, z: 0, height: 0, meadowStrength: 0, hash: 0 };
+  private readonly heightField: HeightField;
+  private readonly ecologyField: EcologyField;
+  private readonly seed: number;
   private buildJob: GrassBuildJob | null = null;
 
-  public constructor(
-    private readonly heightField: HeightField,
-    private readonly seed: number,
-    wind: WindUniforms,
-    asset: InstancedModelAsset,
-  ) {
+  public constructor(dependencies: GrassSystemDependencies) {
+    const { heightField, ecologyField, seed, wind, asset } = dependencies;
+    this.heightField = heightField;
+    this.ecologyField = ecologyField;
+    this.seed = seed;
     const geometry = prepareGrassGeometry(asset.geometry);
     this.rotation = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
     this.phase = new InstancedBufferAttribute(new Float32Array(VEGETATION.grassCapacity), 1);
@@ -71,7 +110,8 @@ export class GrassSystem {
     geometry.setAttribute('aWindStrength', this.strength);
     const sourceMaterial = asset.materials[0];
     if (!sourceMaterial) throw new Error('Grass asset has no material.');
-    this.mesh = new InstancedMesh(geometry, createGrassMaterial(sourceMaterial, wind), VEGETATION.grassCapacity);
+    const material = createGrassMaterial(sourceMaterial, wind);
+    this.mesh = new InstancedMesh(geometry, material, VEGETATION.grassCapacity);
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.mesh.count = 0;
     this.mesh.receiveShadow = true;
@@ -112,7 +152,7 @@ export class GrassSystem {
         this.completeBuild(job);
         return;
       }
-      if (this.tryAddBlade(job.currentX, job.currentZ, job.target, job.count)) job.count += 1;
+      if (this.tryAddBlade(job)) job.count += 1;
       job.currentX += 1;
       if (job.currentX <= job.maxX) continue;
       job.currentX = job.minX;
@@ -126,45 +166,62 @@ export class GrassSystem {
     this.finaliseBuffers(job.count);
   }
 
-  private tryAddBlade(cellX: number, cellZ: number, cameraPosition: Vector3, index: number): boolean {
-    const hash = hashCoordinates(this.seed, cellX, cellZ);
-    const worldX = (cellX + signedRandom(hashCoordinates(hash, 3, 7)) * 0.42) * VEGETATION.grassSpacing;
-    const worldZ = (cellZ + signedRandom(hashCoordinates(hash, 11, 13)) * 0.42) * VEGETATION.grassSpacing;
-    const distance = Math.hypot(worldX - cameraPosition.x, worldZ - cameraPosition.z);
-    const height = this.getAcceptedHeight(worldX, worldZ, distance, hash);
-    if (height === null) return false;
-    this.writeBlade(index, worldX, worldZ, height, hash);
+  private tryAddBlade(job: GrassBuildJob): boolean {
+    const placement = this.createPlacement(job.currentX, job.currentZ);
+    if (!this.acceptsPlacement(placement, job.target)) return false;
+    this.writeBlade(job.count, placement);
     return true;
   }
 
-  private getAcceptedHeight(x: number, z: number, distance: number, hash: number): number | null {
-    if (distance > VEGETATION.grassRadius) return null;
-    const height = this.heightField.getHeight(x, z);
-    if (height > 205 || height < -38 || this.heightField.getSlope(x, z) > 0.82) return null;
-    const distanceRatio = distance / VEGETATION.grassRadius;
-    const distanceKeep = distanceRatio < 0.62 ? 1 : Math.max(0.08, 1 - (distanceRatio - 0.62) / 0.38);
-    const moisture = this.heightField.getMoisture(x, z, height);
-    const cover = this.heightField.getGroundCover(x, z, moisture);
-    const meadow = MathUtils.smoothstep(cover, 0.3, 0.76);
-    const patch = this.heightField.getNoise(x - 130, z + 270, 0.012, 2) * 0.5 + 0.5;
-    const patchDensity = MathUtils.smoothstep(patch, 0.28, 0.72);
-    const woodland = this.heightField.getNoise(x + 240, z - 170, 0.00185, 3) * 0.5 + 0.5;
-    const forestShade = MathUtils.smoothstep(woodland, 0.68, 0.88);
-    const ecology = (0.04 + meadow * 0.78) * (0.16 + patchDensity * 0.84) * (1 - forestShade * 0.52);
-    return unitRandom(hashCoordinates(hash, 17, 19)) < ecology * distanceKeep ? height : null;
+  private createPlacement(cellX: number, cellZ: number): GrassPlacement {
+    const hash = hashCoordinates(this.seed, cellX, cellZ);
+    const jitterX = signedRandom(hashCoordinates(hash, 3, 7)) * 0.42;
+    const jitterZ = signedRandom(hashCoordinates(hash, 11, 13)) * 0.42;
+    this.placement.x = (cellX + jitterX) * VEGETATION.grassSpacing;
+    this.placement.z = (cellZ + jitterZ) * VEGETATION.grassSpacing;
+    this.placement.hash = hash;
+    return this.placement;
   }
 
-  private writeBlade(index: number, x: number, z: number, y: number, hash: number): void {
-    const height = 0.9 + unitRandom(hashCoordinates(hash, 23, 29)) * 0.5;
-    const width = 0.42 + unitRandom(hashCoordinates(hash, 31, 37)) * 0.24;
-    this.position.set(x, y - 0.03, z);
+  private acceptsPlacement(placement: GrassPlacement, cameraPosition: Vector3): boolean {
+    const { x, z, hash } = placement;
+    const distance = Math.hypot(x - cameraPosition.x, z - cameraPosition.z);
+    if (distance > VEGETATION.grassRadius) return false;
+    const height = this.heightField.getHeight(x, z);
+    const slope = this.heightField.getSlope(x, z);
+    if (height > 205 || height < -38 || slope > 0.82) return false;
+    this.writeTerrainSite(placement, height, slope);
+    const meadow = this.ecologyField.sample(this.terrainSite, this.ecologySample).meadow;
+    placement.height = height;
+    placement.meadowStrength = getMeadowStrength(meadow);
+    const baseDensity = placement.meadowStrength * MEADOW_DENSITY_MAX;
+    const density = Math.min(0.98, baseDensity * VEGETATION.grassDensity);
+    return unitRandom(hashCoordinates(hash, 17, 19)) < density * getDistanceKeep(distance);
+  }
+
+  private writeTerrainSite(placement: GrassPlacement, height: number, slope: number): void {
+    this.terrainSite.x = placement.x;
+    this.terrainSite.z = placement.z;
+    this.terrainSite.height = height;
+    this.terrainSite.slope = slope;
+    this.terrainSite.moisture = this.heightField.getMoisture(placement.x, placement.z, height);
+  }
+
+  private writeBlade(index: number, placement: GrassPlacement): void {
+    const { x, z, height: groundHeight, meadowStrength, hash } = placement;
+    const heightVariation = unitRandom(hashCoordinates(hash, 23, 29)) * 0.38;
+    const widthVariation = unitRandom(hashCoordinates(hash, 31, 37)) * 0.2;
+    const height = 0.72 + meadowStrength * 0.22 + heightVariation;
+    const width = 0.36 + meadowStrength * 0.08 + widthVariation;
+    this.position.set(x, groundHeight - 0.03, z);
     this.scale.set(width, height, width);
     this.transform.compose(this.position, IDENTITY_ROTATION, this.scale);
     this.mesh.setMatrixAt(index, this.transform);
     this.rotation.setX(index, unitRandom(hashCoordinates(hash, 41, 43)) * Math.PI * 2);
     this.phase.setX(index, unitRandom(hashCoordinates(hash, 47, 53)) * Math.PI * 2);
     this.strength.setX(index, 0.72 + unitRandom(hashCoordinates(hash, 59, 61)) * 0.5);
-    this.color.copy(GRASS_DARK).lerp(GRASS_LIGHT, unitRandom(hashCoordinates(hash, 67, 71)));
+    this.color.copy(GRASS_EDGE).lerp(GRASS_CORE, meadowStrength);
+    this.color.lerp(GRASS_HIGHLIGHT, unitRandom(hashCoordinates(hash, 67, 71)) * 0.24);
     this.mesh.setColorAt(index, this.color);
   }
 
@@ -178,4 +235,14 @@ export class GrassSystem {
     updateAttributePrefix(this.strength, count);
     this.mesh.computeBoundingSphere();
   }
+}
+
+function getMeadowStrength(meadow: number): number {
+  return MathUtils.smoothstep(meadow, 0, MEADOW_DENSITY_END);
+}
+
+function getDistanceKeep(distance: number): number {
+  const ratio = distance / VEGETATION.grassRadius;
+  if (ratio < 0.62) return 1;
+  return Math.max(0.08, 1 - (ratio - 0.62) / 0.38);
 }
