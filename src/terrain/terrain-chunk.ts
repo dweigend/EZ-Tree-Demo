@@ -3,18 +3,32 @@
  * It resamples a continuous HeightField when reassigned and shares its material with all chunks.
  */
 
-import { BufferAttribute, BufferGeometry, DynamicDrawUsage, Mesh, MeshStandardMaterial, PlaneGeometry, Vector3, Vector4 } from 'three';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  DynamicDrawUsage,
+  Mesh,
+  MeshStandardMaterial,
+  PlaneGeometry,
+  Vector3,
+  Vector4,
+} from 'three';
 import { TERRAIN } from '../config';
-import { writeLandscapeMaterialWeights, type LandscapeSurfaceSample } from '../ecology/landscape-ecology';
+import {
+  writeLandscapeMaterialWeights,
+  type LandscapeMaterialWeights,
+  type LandscapeSurfaceSample,
+} from '../ecology/landscape-ecology';
 import type { HeightField } from '../core/height-field';
 
 export class TerrainChunk {
   public readonly mesh: Mesh<BufferGeometry, MeshStandardMaterial>;
   private readonly positions: BufferAttribute;
   private readonly normals: BufferAttribute;
-  private readonly materialWeights: BufferAttribute;
+  private readonly materialWeightsA: BufferAttribute;
+  private readonly materialWeightsB: BufferAttribute;
   private readonly normal = new Vector3();
-  private readonly weights = new Vector4();
+  private readonly weights: LandscapeMaterialWeights = { first: new Vector4(), second: new Vector3() };
   private readonly surface: LandscapeSurfaceSample = { x: 0, z: 0, height: 0, slope: 0 };
 
   public constructor(
@@ -27,8 +41,14 @@ export class TerrainChunk {
     this.normals = geometry.getAttribute('normal') as BufferAttribute;
     this.positions.setUsage(DynamicDrawUsage);
     this.normals.setUsage(DynamicDrawUsage);
-    this.materialWeights = new BufferAttribute(new Float32Array(this.positions.count * 4), 4).setUsage(DynamicDrawUsage);
-    geometry.setAttribute('aMaterialWeights', this.materialWeights);
+    this.materialWeightsA = new BufferAttribute(new Float32Array(this.positions.count * 4), 4).setUsage(
+      DynamicDrawUsage,
+    );
+    this.materialWeightsB = new BufferAttribute(new Float32Array(this.positions.count * 3), 3).setUsage(
+      DynamicDrawUsage,
+    );
+    geometry.setAttribute('aMaterialWeightsA', this.materialWeightsA);
+    geometry.setAttribute('aMaterialWeightsB', this.materialWeightsB);
     this.mesh = new Mesh(geometry, material);
     this.mesh.receiveShadow = true;
   }
@@ -48,7 +68,8 @@ export class TerrainChunk {
     }
     this.positions.needsUpdate = true;
     this.normals.needsUpdate = true;
-    this.materialWeights.needsUpdate = true;
+    this.materialWeightsA.needsUpdate = true;
+    this.materialWeightsB.needsUpdate = true;
     this.mesh.geometry.computeBoundingSphere();
   }
 
@@ -64,6 +85,13 @@ export class TerrainChunk {
     this.surface.height = height;
     this.surface.slope = 1 - this.normal.y;
     writeLandscapeMaterialWeights(this.heightField, this.surface, this.weights);
-    this.materialWeights.setXYZW(index, this.weights.x, this.weights.y, this.weights.z, this.weights.w);
+    this.materialWeightsA.setXYZW(
+      index,
+      this.weights.first.x,
+      this.weights.first.y,
+      this.weights.first.z,
+      this.weights.first.w,
+    );
+    this.materialWeightsB.setXYZ(index, this.weights.second.x, this.weights.second.y, this.weights.second.z);
   }
 }

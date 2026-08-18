@@ -1,15 +1,72 @@
 {
   "slots": [
-    { "slot": "meadow", "source": "01-lush-meadow" },
-    { "slot": "valley", "source": "05-wet-valley-loam" },
-    { "slot": "forest", "source": "06-mossy-forest-floor" },
-    { "slot": "exposed", "source": "09-fine-gravel-scree" }
+    {
+      "slot": "meadow",
+      "source": "sparse_grass",
+      "name": "Sparse Grass",
+      "author": "Amal Kumar"
+    },
+    {
+      "slot": "mud",
+      "source": "brown_mud_02",
+      "name": "Brown Mud 02",
+      "author": "Rob Tuytel"
+    },
+    {
+      "slot": "dryForest",
+      "source": "dry_decay_leaves",
+      "name": "Dry Decay Leaves",
+      "author": "Amal Kumar"
+    },
+    {
+      "slot": "mossForest",
+      "source": "forest_leaves_02",
+      "name": "Forest Leaves 02",
+      "author": "Rob Tuytel"
+    },
+    {
+      "slot": "forest",
+      "source": "forrest_ground_01",
+      "name": "Forest Ground 01",
+      "author": "Rob Tuytel"
+    },
+    {
+      "slot": "rock",
+      "source": "rocky_terrain_03",
+      "name": "Rocky Terrain 03",
+      "author": "Amal Kumar"
+    },
+    {
+      "slot": "trail",
+      "source": "rocky_trail",
+      "name": "Rocky Trail",
+      "author": "Amal Kumar"
+    }
   ],
-  "roughness": [0.9, 0.96, 0.92, 0.86],
+  "roughness": [
+    0.9451,
+    0.9765,
+    0.8118,
+    0.9412,
+    0.9255,
+    0.9608,
+    0.6549
+  ],
+  "tileMeters": [
+    14,
+    10,
+    8,
+    10,
+    12,
+    42,
+    8
+  ],
+  "atlasColumns": 3,
   "atlasSize": {
-    "desktop": 2048,
-    "pico90": 1024
+    "desktop": 3072,
+    "pico90": 1536
   },
   "gutterPixels": 8,
-  "status": "placeholder-derived-from-existing-ez-tree-textures"
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license"
 }

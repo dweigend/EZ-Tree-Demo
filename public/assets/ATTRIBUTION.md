@@ -35,10 +35,22 @@ covered by the EZ-Tree project license.
 Both files are unmodified source downloads. Runtime normalisation, instancing, colour variation, and
 wind deformation happen in code without producing derivative asset files.
 
-The files under `terrain/palette-desktop/` and `terrain/palette-pico/` are currently derived from
-the three listed EZ-Tree terrain textures. `terrain/palette.json` records this placeholder status.
-When regenerated through GPT Image and PATINA, the corresponding prompt, seed and Fal result metadata
-must remain beside the source material before this attribution note is updated.
+## Poly Haven terrain materials
+
+The source maps under `assets/source/terrain-materials/polyhaven/` and the derived atlases under
+`terrain/palette-desktop/` and `terrain/palette-pico/` use these Poly Haven assets:
+
+- [Sparse Grass](https://polyhaven.com/a/sparse_grass), Amal Kumar
+- [Brown Mud 02](https://polyhaven.com/a/brown_mud_02), Rob Tuytel
+- [Dry Decay Leaves](https://polyhaven.com/a/dry_decay_leaves), Amal Kumar
+- [Forest Leaves 02](https://polyhaven.com/a/forest_leaves_02), Rob Tuytel
+- [Forest Ground 01](https://polyhaven.com/a/forrest_ground_01), Rob Tuytel
+- [Rocky Terrain 03](https://polyhaven.com/a/rocky_terrain_03), Amal Kumar
+- [Rocky Trail](https://polyhaven.com/a/rocky_trail), Amal Kumar
+
+All seven assets are licensed under [CC0](https://polyhaven.com/license). The checked-in source
+manifest preserves the exact download URLs and material order. The runtime atlases contain resized
+base-colour and normal maps; median roughness values are stored in `terrain/palette.json`.
 
 ## Draco decoder
 

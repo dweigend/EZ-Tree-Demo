@@ -3,7 +3,16 @@
  * Model transforms are baked once at startup; consumers clone geometry and materials as needed.
  */
 
-import { BufferGeometry, ClampToEdgeWrapping, Mesh, MeshStandardMaterial, Object3D, SRGBColorSpace, Texture, TextureLoader } from 'three';
+import {
+  BufferGeometry,
+  ClampToEdgeWrapping,
+  Mesh,
+  MeshStandardMaterial,
+  Object3D,
+  SRGBColorSpace,
+  Texture,
+  TextureLoader,
+} from 'three';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -17,9 +26,12 @@ export interface InstancedModelAsset {
 export interface GroundTextureAssets {
   readonly albedoAtlas: Texture;
   readonly normalAtlas: Texture;
-  readonly roughness: readonly [number, number, number, number];
+  readonly roughness: TerrainLayerValues;
+  readonly tileMeters: TerrainLayerValues;
   readonly atlasSize: number;
 }
+
+export type TerrainLayerValues = readonly [number, number, number, number, number, number, number];
 
 export interface LandscapeAssets {
   readonly ground: GroundTextureAssets;
@@ -74,10 +86,16 @@ async function loadGroundTextures(): Promise<GroundTextureAssets> {
   const palettePath = `${TERRAIN_PATH}/${paletteName}`;
   const [albedoAtlas, normalAtlas, metadata] = await Promise.all([
     loadGroundTexture(loader, `${palettePath}/albedo.webp`, true),
-    loadGroundTexture(loader, `${palettePath}/normal.png`, false),
+    loadGroundTexture(loader, `${palettePath}/normal.webp`, false),
     loadTerrainPalette(`${TERRAIN_PATH}/palette.json`),
   ]);
-  return { albedoAtlas, normalAtlas, roughness: metadata.roughness, atlasSize: metadata.atlasSize[QUALITY_PROFILE.name] };
+  return {
+    albedoAtlas,
+    normalAtlas,
+    roughness: metadata.roughness,
+    tileMeters: metadata.tileMeters,
+    atlasSize: metadata.atlasSize[QUALITY_PROFILE.name],
+  };
 }
 
 async function loadGroundTexture(loader: TextureLoader, url: string, colorTexture: boolean): Promise<Texture> {
@@ -90,7 +108,9 @@ async function loadGroundTexture(loader: TextureLoader, url: string, colorTextur
 }
 
 interface TerrainPaletteMetadata {
-  readonly roughness: readonly [number, number, number, number];
+  readonly roughness: TerrainLayerValues;
+  readonly tileMeters: TerrainLayerValues;
+  readonly atlasColumns: 3;
   readonly atlasSize: Readonly<Record<'desktop' | 'pico90', number>>;
 }
 
@@ -105,21 +125,26 @@ async function loadTerrainPalette(url: string): Promise<TerrainPaletteMetadata> 
 function isTerrainPaletteMetadata(value: unknown): value is TerrainPaletteMetadata {
   if (!isRecord(value)) return false;
   const candidate = value as Partial<TerrainPaletteMetadata>;
-  return isRoughnessTuple(candidate.roughness) && isAtlasSize(candidate.atlasSize);
+  return (
+    isTerrainLayerValues(candidate.roughness) &&
+    isTerrainLayerValues(candidate.tileMeters) &&
+    candidate.atlasColumns === 3 &&
+    isAtlasSize(candidate.atlasSize)
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
 }
 
-function isRoughnessTuple(value: unknown): value is TerrainPaletteMetadata['roughness'] {
-  if (!Array.isArray(value) || value.length !== 4) return false;
+function isTerrainLayerValues(value: unknown): value is TerrainLayerValues {
+  if (!Array.isArray(value) || value.length !== 7) return false;
   return value.every((entry) => typeof entry === 'number');
 }
 
 function isAtlasSize(value: unknown): value is TerrainPaletteMetadata['atlasSize'] {
   if (!isRecord(value)) return false;
-  return value.desktop === 2_048 && value.pico90 === 1_024;
+  return value.desktop === 3_072 && value.pico90 === 1_536;
 }
 
 async function loadModel(loader: GLTFLoader, url: string): Promise<InstancedModelAsset> {

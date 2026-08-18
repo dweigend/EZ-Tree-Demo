@@ -10,6 +10,7 @@ Die Landschaft priorisiert stabile Framezeiten vor maximaler Objektdichte. Die M
 - Streaming: Baum-Rebuild, Ground-Cover-Rebuild und Terrain-Resample werden auf getrennte Frames verteilt
 - Buffer: dynamische Instanzattribute laden nur den tatsächlich belegten Präfix über die Three.js-Update-Ranges hoch
 - Sichtkanten: Distanz-Ausdünnung, harte LOD-Bänder und abgestimmter Fog statt doppelter Instanzen in Kreuzblenden
+- Boden: sieben Poly-Haven-Zonen in einem Atlas; der Shader wählt pro Fragment nur die zwei stärksten Schichten
 
 Ein reproduzierter 12-Sekunden-Testflug mit 220 m/s in Headless Chrome bei 1280×720 sank gegenüber `ec713e2` von 20,2 auf 8,17 ms mittlere Framezeit. p99 sank von 40,6 auf 10,1 ms, der höchste beobachtete Frame von 58,1 auf 17,5 ms. Im vereinfachten Lauf trat kein Frame über 20 ms auf. Die Startzeit bis zur ersten Laufzeitdiagnose sank von rund 2,27 auf 1,18 Sekunden.
 
@@ -59,6 +60,20 @@ sind aber kein Ersatz für eine XR-Session auf dem Headset.
   Phase und Stärke variieren pro Instanz ohne CPU-Animation.
 - Vegetation wird nach einer Richtungsänderung von etwa 20 Grad neu aufgebaut. So bleibt die
   richtungsgewichtete Auswahl bei interaktivem Flug korrekt, ohne per-frame Objekt-Culling einzuführen.
+- Die Bodenzonen werden nur beim Chunk-Resampling aus Höhe, Hang, Feuchte und Woodland berechnet.
+  Der Geröllweg erhält im Fragment-Shader nur eine analytische Kantenmaske. Draw Calls und Anzahl der
+  Material-Samples bleiben trotz sieben Zonen unverändert: zwei Albedo- und auf Desktop zwei Normalmaps,
+  auf PICO eine Normalmap.
+- Die 3x3-Atlanten belegen dekodiert etwa 72 MiB auf Desktop und 18 MiB auf PICO. Die ausgelieferten
+  WebP-Dateien umfassen zusammen rund 6,7 MiB. KTX2 bleibt erst dann sinnvoll, wenn reale PICO-Messungen
+  Texture-Speicher oder Ladezeit als Engpass bestätigen.
+
+### Kontrolllauf mit sieben Bodenzonen
+
+Der 12-Sekunden-Desktop-Flug hielt nach der Atlas- und Zonenumstellung 120 FPS: p50 8,3 ms,
+p95 9,8 ms, p99 10,3 ms, maximal 10,5 ms und kein Frame über 16,7 ms. Am Routenende wurden
+774 Bäume, 24 Wiesen-Cluster, 7 Grasbüschel und 1.013 Steine bei 29 Calls und 1,30 M Dreiecken
+gerendert. Das belegt den Desktop-Pfad; die physische PICO-Freigabe bleibt separat.
 
 ### Physische PICO-4-Freigabe
 

@@ -48,7 +48,7 @@ Reproduzierbare Flugmessungen laufen ohne Pointer-Lock über `benchmark=desktop-
 
 ## Architektur
 
-- `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und vier organisch gemischte Atlas-Materialien
+- `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und sieben organisch gemischte Atlas-Materialien
 - `ecology/`: gemeinsame Feuchte-, Bodenbedeckungs- und Wald-Makrofelder ohne Platzierungsregeln
 - `trees/`: drei offizielle mittlere EZ-Tree-Templates in globalen Instancing-Batches und drei harten LOD-Bändern
 - `vegetation/`: deterministische Steinverteilung in drei globalen Ground-Cover-Batches
@@ -58,26 +58,24 @@ Reproduzierbare Flugmessungen laufen ohne Pointer-Lock über `benchmark=desktop-
 - `rendering/`: WebGL2, Color Management, atmosphärischer Himmel, Fog und begrenzte Schatten
 - `world/`: explizite Frame-Reihenfolge und Lifecycle
 
-Wiese, Talboden, Waldboden und exponierter Boden werden aus Höhe, Hang, Feuchte und Woodland in
-absoluten Weltkoordinaten gewichtet. Die Gewichte entstehen nur bei einer Chunk-Zuweisung. PICO
-mischt zwei Albedo-Samples und liest eine dominante Normalmap; es entsteht keine Per-Frame-CPU-Arbeit.
+Wiese, Matsch, drei Waldböden, Fels und Geröllwege werden aus Höhe, Hang, Feuchte, Woodland und
+verzerrten Weltkoordinaten gewichtet. Die Gewichte entstehen nur bei einer Chunk-Zuweisung. Desktop
+und PICO mischen höchstens zwei Albedo-Samples; PICO liest nur die dominante Normalmap. Es entsteht
+keine Per-Frame-CPU-Arbeit.
 
-## Terrain-Materialien erzeugen
+## Terrain-Materialien bauen
 
-Die zehn reproduzierbaren GPT-Referenzprompts liegen in `assets/source/terrain-materials/prompts.jsonl`.
-Die Pipeline erzeugt daraus PATINA-PBR-Kandidaten und packt die vier markierten Gewinner in feste
-Desktop-/PICO-Atlanten:
+Die aktive Palette nutzt sieben lokale Poly-Haven-CC0-Materialien. Quellen, Autoren, Kachelung und
+Download-URLs stehen in `assets/source/terrain-materials/polyhaven.json`. ImageMagick packt daraus
+feste Desktop-/PICO-Atlanten:
 
 ```bash
-export OPENAI_API_KEY=...
-export FAL_KEY=...
 bun run assets:all
 ```
 
-Einzelne Stufen sind `assets:references`, `assets:patina` und `assets:atlas`. Die Zugangsdaten werden
-nur von den Offline-CLIs gelesen und nie an den Browser ausgeliefert. Solange noch keine API-Ausgabe
-erzeugt wurde, nutzt die Demo einen kompatiblen vierteiligen Platzhalter-Atlas aus den vorhandenen
-EZ-Tree-Bodentexturen.
+`assets:all` und `assets:atlas` bauen ausschließlich aus den eingecheckten Quelldateien und benötigen
+keinen Netz- oder API-Zugriff. Die bisherigen GPT-/PATINA-Skripte bleiben als getrennte Experimente
+verfügbar, sind aber nicht Teil des aktiven Runtime-Builds.
 
 ## Tests
 
