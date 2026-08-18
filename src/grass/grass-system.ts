@@ -147,7 +147,7 @@ export class GrassSystem {
     const patchDensity = MathUtils.smoothstep(patch, 0.28, 0.72);
     const woodland = getWoodland(this.heightField, x, z);
     const forestShade = MathUtils.smoothstep(woodland, 0.68, 0.88);
-    const ecology = (0.04 + meadow * 0.78) * (0.16 + patchDensity * 0.84) * (1 - forestShade * 0.52);
+    const ecology = (0.1 + meadow * 0.86) * (0.28 + patchDensity * 0.72) * (1 - forestShade * 0.34);
     return unitRandom(hashCoordinates(hash, 17, 19)) < ecology * distanceKeep ? height : null;
   }
 

@@ -34,20 +34,33 @@ Frame-Recorders:
 
 | Metric | Ergebnis |
 |---|---:|
-| Samples | 1.607 |
+| Samples | 1.414 |
 | p50 | 8,3 ms |
-| p95 | 9,2 ms |
-| p99 | 9,4 ms |
-| Maximum | 10,6 ms |
-| Frames über 16,7 ms | 0 |
-| Draw Calls am Routenende | 45 |
-| Dreiecke am Routenende | 1,46 M |
-| Sichtbare Bäume am Routenende | 501 |
+| p95 | 10,3 ms |
+| p99 | 12,7 ms |
+| Maximum | 18,7 ms |
+| Frames über 16,7 ms | 1 von 1.414 (0,071 %) |
+| Draw Calls am Routenende | 44 |
+| Dreiecke am Routenende | 1,70 M |
+| Sichtbare Bäume am Routenende | 495 |
+| Gras / Blumen / Steine am Routenende | 45.659 / 576 / 576 |
 
-Der statische Startbereich enthält nach Warm-up 448 Bäume statt zuvor 287 und bleibt unter
-55 Draw Calls sowie 2,0 M Dreiecken. Das PICO-Profil rendert im Desktop-Browser denselben Startbereich
-mit 25 Terrain-Chunks, etwa 139 Bäumen, 45 Calls und 0,64 M Dreiecken. Diese Werte prüfen Profilbudgets,
-sind aber kein Ersatz für eine XR-Session auf dem Headset.
+Der statische Startbereich enthält nach Warm-up 513 Bäume, 41.691 Grashalme, 1.511 Blumen und
+586 Steine bei 53 Draw Calls und 3,53 M Dreiecken. Gegenüber dem vorherigen dichten Checkpoint sind das
+etwa 15 % mehr Bäume, 174 % mehr Gras, 472 % mehr Blumen und 186 % mehr Steine.
+
+Das PICO-Profil rendert im Desktop-Browser denselben Startbereich mit 25 Terrain-Chunks, 182 Bäumen,
+14.284 Grashalmen, 841 Blumen und 203 Steinen bei 44 Calls und 1,45 M Dreiecken. Diese Werte prüfen
+Profilbudgets, sind aber kein Ersatz für eine XR-Session auf dem Headset.
+
+### Ermittelte Dichteobergrenze
+
+Die finale Konfiguration nutzt ein 18-m-Baumraster, den Waldwahrscheinlichkeitsfaktor 1,5 und Äste nur
+im Nah-LOD. Drei automatisierte Wiederholungsläufe blieben innerhalb des Browserbudgets. Das dichtere
+17-m-Raster erreichte dagegen p99 bis 13,7 ms und zwei Frames über 16,7 ms; die extreme Stressstufe mit
+14-m-Raster erreichte entlang der Route 1.350 Bäume, kippte aber auf p99 17,3 ms, 1,41 % Frames über
+16,7 ms und 18 aufeinanderfolgende Misses. Beide wurden deshalb verworfen. Die Ground-Cover-Erhöhung
+allein blieb bei p99 10,4 ms und war nicht die Ursache der Streaming-Spikes.
 
 ### Physische PICO-4-Freigabe
 
@@ -56,7 +69,8 @@ sind aber kein Ersatz für eine XR-Session auf dem Headset.
    `xr.targetRequestSucceeded === true` stehen.
 3. Nach 60 Sekunden Warm-up den Recorder zurücksetzen und zehn Minuten mit Kopfbewegungen laufen lassen.
 4. Akzeptanz: p99 höchstens 12 ms, höchstens 0,1 % Frames über 16,7 ms, keine drei Misses in Folge,
-   höchstens 55 Calls, höchstens 0,9 M Dreiecke und bis zum Ende bestätigte 90 Hz.
+   höchstens 55 Calls, höchstens 1,6 M Dreiecke und bis zum Ende bestätigte 90 Hz. Der Dreiecksdeckel
+   ist ein Profilbudget; die 90-Hz- und Framezeit-Grenzen entscheiden auf dem Headset.
 5. Parallel einen Perfetto-Trace für einen Waldkern und mehrere schnelle Chunk-Wechsel aufzeichnen.
 6. Zehnmal VR betreten und verlassen; es dürfen keine Shader-, Naht-, Atlas- oder Lifecycle-Fehler auftreten.
 

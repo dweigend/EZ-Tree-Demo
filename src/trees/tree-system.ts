@@ -133,7 +133,7 @@ export class TreeSystem {
     const leaves = this.createInstancedMesh(geometry.leaves, variant.leafMaterial);
     const phase = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
     const strength = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
-    const rendersBranches = lod !== 'far';
+    const rendersBranches = lod === 'near';
     leaves.geometry.setAttribute('aWindPhase', phase);
     leaves.geometry.setAttribute('aWindStrength', strength);
     branches.castShadow = lod === 'near';

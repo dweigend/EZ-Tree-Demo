@@ -94,7 +94,7 @@ export class ForestDistribution {
     const forestCore = MathUtils.smoothstep(cluster, 0.4, 0.68) * (0.42 + moisture * 0.5);
     const forestEdge = MathUtils.smoothstep(grove, 0.58, 0.82) * 0.16;
     const isolatedChance = unitRandom(hashCoordinates(hash, 11, 29)) > 0.965 ? 0.16 : 0;
-    const probability = (forestCore + forestEdge) * altitude * slopeFitness * (1 - clearing * 0.98) * 1.28 + isolatedChance;
+    const probability = (forestCore + forestEdge) * altitude * slopeFitness * (1 - clearing * 0.98) * 1.5 + isolatedChance;
     return unitRandom(hashCoordinates(hash, 7, 13)) < probability;
   }
 
