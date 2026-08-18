@@ -29,6 +29,11 @@ Tree bark and leaf textures are consumed from the installed `@dgreenheck/ez-tree
 than duplicated here. Bark textures originate from ambientCG and are CC0; leaf textures are
 covered by the EZ-Tree project license.
 
+The files under `terrain/palette-desktop/` and `terrain/palette-pico/` are currently derived from
+the three listed EZ-Tree terrain textures. `terrain/palette.json` records this placeholder status.
+When regenerated through GPT Image and PATINA, the corresponding prompt, seed and Fal result metadata
+must remain beside the source material before this attribution note is updated.
+
 ## Draco decoder
 
 The local decoder files under `draco/` are copied from the installed Three.js package and originate
