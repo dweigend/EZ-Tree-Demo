@@ -7,7 +7,7 @@ import { Color, DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Matri
 import { TERRAIN, VEGETATION } from '../config';
 import { createDynamicScalarAttribute, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
 import { ChunkPrefetchQueue, getChunkIndex, getChunkViewWindow, type HorizontalDirection } from '../world/chunk-coordinates';
-import type { ForestDistribution, TreePlacement } from './forest-distribution';
+import { acceptsTreeDensity, type ForestDistribution, type TreePlacement } from './forest-distribution';
 import type { TreeGeometryPair, TreeLod, TreeVariant } from './tree-factory';
 import type { TreeSpecies } from './tree-templates';
 
@@ -16,12 +16,13 @@ interface TreeBatch {
   readonly leaves: InstancedMesh;
   readonly phase: InstancedBufferAttribute;
   readonly strength: InstancedBufferAttribute;
+  readonly rendersBranches: boolean;
   count: number;
 }
 
 const LODS: readonly TreeLod[] = ['near', 'middle', 'far'];
+const SHARED_FAR_VARIANT_INDEX = 0;
 const LEAF_COLORS: Readonly<Record<TreeSpecies, readonly [Color, Color]>> = {
-  ash: [new Color('#c4d3ae'), new Color('#f1e8bd')],
   aspen: [new Color('#c9dcaa'), new Color('#eff0b4')],
   oak: [new Color('#bed09b'), new Color('#e1d39d')],
   pine: [new Color('#b2c8a6'), new Color('#d8d6a2')],
@@ -86,10 +87,12 @@ export class TreeSystem {
   }
 
   private addPlacement(placement: TreePlacement, cameraPosition: Vector3): void {
+    if (!acceptsTreeDensity(placement.densityRank, VEGETATION.treeDensity)) return;
     const distance = Math.hypot(placement.x - cameraPosition.x, placement.z - cameraPosition.z);
     const variant = this.variants[placement.variant];
     const lodIndex = this.getLodIndex(distance);
-    const batch = lodIndex === null ? undefined : this.batches[placement.variant]?.[lodIndex];
+    const batchIndex = lodIndex === 2 ? SHARED_FAR_VARIANT_INDEX : placement.variant;
+    const batch = lodIndex === null ? undefined : this.batches[batchIndex]?.[lodIndex];
     if (!variant || !batch || batch.count >= VEGETATION.treeBatchCapacity) return;
     this.writeInstance(batch, variant, placement);
     batch.count += 1;
@@ -103,7 +106,7 @@ export class TreeSystem {
     this.rotation.setFromAxisAngle(Object3D.DEFAULT_UP, placement.rotation);
     this.scale.set(worldHeight * placement.widthScale, worldHeight, worldHeight * placement.depthScale);
     this.transform.compose(this.position, this.rotation, this.scale);
-    batch.branches.setMatrixAt(index, this.transform);
+    if (batch.rendersBranches) batch.branches.setMatrixAt(index, this.transform);
     batch.leaves.setMatrixAt(index, this.transform);
     batch.phase.setX(index, placement.windPhase);
     batch.strength.setX(index, placement.windStrength);
@@ -130,12 +133,13 @@ export class TreeSystem {
     const leaves = this.createInstancedMesh(geometry.leaves, variant.leafMaterial);
     const phase = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
     const strength = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
+    const rendersBranches = lod !== 'far';
     leaves.geometry.setAttribute('aWindPhase', phase);
     leaves.geometry.setAttribute('aWindStrength', strength);
     branches.castShadow = lod === 'near';
-    leaves.castShadow = lod === 'near';
+    leaves.castShadow = VEGETATION.leafShadows && lod === 'near';
     this.group.add(branches, leaves);
-    return { branches, leaves, phase, strength, count: 0 };
+    return { branches, leaves, phase, strength, rendersBranches, count: 0 };
   }
 
   private createInstancedMesh(geometry: TreeGeometryPair['branches'], material: TreeVariant['branchMaterial']): InstancedMesh {
@@ -153,7 +157,7 @@ export class TreeSystem {
   private finaliseBatches(): void {
     for (const batches of this.batches) {
       for (const batch of batches) {
-        finaliseInstancedMesh(batch.branches, batch.count);
+        finaliseInstancedMesh(batch.branches, batch.rendersBranches ? batch.count : 0);
         finaliseInstancedMesh(batch.leaves, batch.count, batch.phase, batch.strength);
       }
     }

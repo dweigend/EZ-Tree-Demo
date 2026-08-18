@@ -5,12 +5,16 @@
 
 import { Clock, FogExp2, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
 import { disposeLandscapeAssets, type LandscapeAssets } from '../assets/landscape-assets';
-import { LANDSCAPE_VIEW, RENDERING, WORLD_SEED } from '../config';
+import { BENCHMARK_MODE, LANDSCAPE_VIEW, QUALITY_PROFILE, RENDERING, WORLD_SEED } from '../config';
 import { FlightControls } from '../controls/flight-controls';
 import { hashString } from '../core/random';
 import { GrassSystem } from '../grass/grass-system';
 import { createRenderer } from '../rendering/create-renderer';
 import { Environment } from '../rendering/environment';
+import { configureXr } from '../rendering/xr-runtime';
+import type { BenchmarkSnapshot } from '../performance/benchmark-contract';
+import { BenchmarkFlight } from '../performance/benchmark-flight';
+import { FrameHistogram } from '../performance/frame-histogram';
 import { HeightField } from '../core/height-field';
 import { TerrainSystem } from '../terrain/terrain-system';
 import { createTreeVariants } from '../trees/tree-factory';
@@ -45,8 +49,11 @@ export class WorldRuntime {
   private readonly scene = new Scene();
   private readonly camera = new PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, RENDERING.cameraFar);
   private readonly renderer: WebGLRenderer = createRenderer();
+  private readonly xr = configureXr(this.renderer);
   private readonly clock = new Clock();
   private readonly heightField = new HeightField(WORLD_SEED, LANDSCAPE_VIEW.relief);
+  private readonly benchmarkFlight = new BenchmarkFlight(BENCHMARK_MODE, this.camera, this.heightField);
+  private readonly frameHistogram = new FrameHistogram();
   private readonly wind = new WindField();
   private readonly terrain: TerrainSystem;
   private readonly environment: Environment;
@@ -83,6 +90,10 @@ export class WorldRuntime {
     this.scene.add(this.terrain.group, this.trees.group, this.grass.mesh, this.groundCover.group);
     this.diagnostics = createInitialDiagnostics();
     window.__LANDSCAPE_DIAGNOSTICS__ = this.diagnostics;
+    window.__LANDSCAPE_BENCHMARK__ = {
+      reset: (): void => this.frameHistogram.reset(),
+      snapshot: (): BenchmarkSnapshot => this.createBenchmarkSnapshot(),
+    };
     window.addEventListener('resize', this.resize);
   }
 
@@ -102,6 +113,7 @@ export class WorldRuntime {
   public dispose(): void {
     this.renderer.setAnimationLoop(null);
     window.removeEventListener('resize', this.resize);
+    this.xr.dispose();
     this.controls.dispose();
     this.terrain.dispose();
     this.trees.dispose();
@@ -111,6 +123,7 @@ export class WorldRuntime {
     disposeLandscapeAssets(this.assets);
     this.renderer.dispose();
     this.renderer.domElement.remove();
+    delete window.__LANDSCAPE_BENCHMARK__;
     delete window.__LANDSCAPE_DIAGNOSTICS__;
   }
 
@@ -118,17 +131,30 @@ export class WorldRuntime {
     const rawDeltaSeconds = this.clock.getDelta();
     const simulationDeltaSeconds = Math.min(rawDeltaSeconds, 0.05);
     const elapsedSeconds = this.clock.elapsedTime;
-    this.controls.update(simulationDeltaSeconds);
+    this.updateCamera(simulationDeltaSeconds);
     this.camera.getWorldDirection(this.viewDirection);
     const chunkWindowChanged = this.terrain.updateChunkWindow(this.camera.position, this.viewDirection);
     const vegetationRefreshed = this.refreshVegetation(chunkWindowChanged);
-    if (!chunkWindowChanged && !vegetationRefreshed) this.processBackgroundStep();
+    this.processBackgroundWork(chunkWindowChanged, vegetationRefreshed);
     this.grass.update(this.camera.position);
     this.wind.update(elapsedSeconds);
     this.environment.update(this.camera);
     this.renderer.render(this.scene, this.camera);
+    this.frameHistogram.record(rawDeltaSeconds * 1_000);
     this.updateDiagnostics(rawDeltaSeconds, elapsedSeconds);
   };
+
+  private updateCamera(deltaSeconds: number): void {
+    this.benchmarkFlight.update(deltaSeconds, this.renderer.xr.isPresenting);
+    const interactiveFlight = !(this.benchmarkFlight.enabled || this.renderer.xr.isPresenting);
+    this.controls.setEnabled(interactiveFlight);
+    this.controls.update(deltaSeconds);
+  }
+
+  private processBackgroundWork(chunkWindowChanged: boolean, vegetationRefreshed: boolean): void {
+    if (chunkWindowChanged || vegetationRefreshed) return;
+    this.processBackgroundStep();
+  }
 
   private positionCamera(): void {
     const startZ = 120;
@@ -188,7 +214,7 @@ export class WorldRuntime {
       geometries: info.memory.geometries,
       textures: info.memory.textures,
       position: this.camera.position.toArray(),
-      speed: Math.round(this.controls.speed),
+      speed: Math.round(this.benchmarkFlight.enabled ? this.benchmarkFlight.speed : this.controls.speed),
       viewDistance: LANDSCAPE_VIEW.distance,
       relief: LANDSCAPE_VIEW.relief,
     });
@@ -202,6 +228,16 @@ export class WorldRuntime {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDERING.pixelRatioCap));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   };
+
+  private createBenchmarkSnapshot(): BenchmarkSnapshot {
+    return {
+      ...this.frameHistogram.snapshot(),
+      profile: QUALITY_PROFILE.name,
+      mode: BENCHMARK_MODE,
+      diagnostics: { ...this.diagnostics },
+      xr: { ...this.xr.status },
+    };
+  }
 }
 
 function createInitialDiagnostics(): LandscapeDiagnostics {

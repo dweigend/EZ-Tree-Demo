@@ -69,8 +69,8 @@ function normalisePair(branchSource: BufferGeometry, leafSource: BufferGeometry)
 function createLods(near: TreeGeometryPair): Readonly<Record<TreeLod, TreeGeometryPair>> {
   return {
     near,
-    middle: { branches: simplify(near.branches, 0.48), leaves: thinLeaves(inflateLeafCards(near.leaves, 1.35), 2) },
-    far: { branches: simplify(near.branches, 0.12), leaves: thinLeaves(inflateLeafCards(near.leaves, 1.9), 5) },
+    middle: { branches: simplify(near.branches, 0.4), leaves: thinLeaves(inflateLeafCards(near.leaves, 1.45), 2) },
+    far: { branches: simplify(near.branches, 0.08), leaves: thinLeaves(inflateLeafCards(near.leaves, 2.1), 5) },
   };
 }
 

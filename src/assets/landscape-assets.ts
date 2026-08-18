@@ -3,10 +3,11 @@
  * Model transforms are baked once at startup; consumers clone geometry and materials as needed.
  */
 
-import { BufferGeometry, Mesh, MeshStandardMaterial, Object3D, RepeatWrapping, SRGBColorSpace, Texture, TextureLoader } from 'three';
+import { BufferGeometry, ClampToEdgeWrapping, Mesh, MeshStandardMaterial, Object3D, SRGBColorSpace, Texture, TextureLoader } from 'three';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { QUALITY_PROFILE } from '../config';
 
 export interface InstancedModelAsset {
   readonly geometry: BufferGeometry;
@@ -14,9 +15,10 @@ export interface InstancedModelAsset {
 }
 
 export interface GroundTextureAssets {
-  readonly grass: Texture;
-  readonly dirtColor: Texture;
-  readonly dirtNormal: Texture;
+  readonly albedoAtlas: Texture;
+  readonly normalAtlas: Texture;
+  readonly roughness: readonly [number, number, number, number];
+  readonly atlasSize: number;
 }
 
 export interface LandscapeAssets {
@@ -70,21 +72,56 @@ export function disposeLandscapeAssets(assets: LandscapeAssets): void {
 
 async function loadGroundTextures(): Promise<GroundTextureAssets> {
   const loader = new TextureLoader();
-  const [grass, dirtColor, dirtNormal] = await Promise.all([
-    loadGroundTexture(loader, `${TERRAIN_PATH}/grass.jpg`, true),
-    loadGroundTexture(loader, `${TERRAIN_PATH}/dirt_color.jpg`, true),
-    loadGroundTexture(loader, `${TERRAIN_PATH}/dirt_normal.jpg`, false),
+  const paletteName = QUALITY_PROFILE.name === 'pico90' ? 'palette-pico' : 'palette-desktop';
+  const palettePath = `${TERRAIN_PATH}/${paletteName}`;
+  const [albedoAtlas, normalAtlas, metadata] = await Promise.all([
+    loadGroundTexture(loader, `${palettePath}/albedo.webp`, true),
+    loadGroundTexture(loader, `${palettePath}/normal.png`, false),
+    loadTerrainPalette(`${TERRAIN_PATH}/palette.json`),
   ]);
-  return { grass, dirtColor, dirtNormal };
+  return { albedoAtlas, normalAtlas, roughness: metadata.roughness, atlasSize: metadata.atlasSize[QUALITY_PROFILE.name] };
 }
 
 async function loadGroundTexture(loader: TextureLoader, url: string, colorTexture: boolean): Promise<Texture> {
   const texture = await loader.loadAsync(url);
-  texture.wrapS = RepeatWrapping;
-  texture.wrapT = RepeatWrapping;
+  texture.wrapS = ClampToEdgeWrapping;
+  texture.wrapT = ClampToEdgeWrapping;
   texture.anisotropy = 4;
   if (colorTexture) texture.colorSpace = SRGBColorSpace;
   return texture;
+}
+
+interface TerrainPaletteMetadata {
+  readonly roughness: readonly [number, number, number, number];
+  readonly atlasSize: Readonly<Record<'desktop' | 'pico90', number>>;
+}
+
+async function loadTerrainPalette(url: string): Promise<TerrainPaletteMetadata> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load terrain palette metadata: ${response.status}`);
+  const value: unknown = await response.json();
+  if (!isTerrainPaletteMetadata(value)) throw new Error('Terrain palette metadata is invalid.');
+  return value;
+}
+
+function isTerrainPaletteMetadata(value: unknown): value is TerrainPaletteMetadata {
+  if (!isRecord(value)) return false;
+  const candidate = value as Partial<TerrainPaletteMetadata>;
+  return isRoughnessTuple(candidate.roughness) && isAtlasSize(candidate.atlasSize);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function isRoughnessTuple(value: unknown): value is TerrainPaletteMetadata['roughness'] {
+  if (!Array.isArray(value) || value.length !== 4) return false;
+  return value.every((entry) => typeof entry === 'number');
+}
+
+function isAtlasSize(value: unknown): value is TerrainPaletteMetadata['atlasSize'] {
+  if (!isRecord(value)) return false;
+  return value.desktop === 2_048 && value.pico90 === 1_024;
 }
 
 async function loadModel(loader: GLTFLoader, url: string): Promise<InstancedModelAsset> {

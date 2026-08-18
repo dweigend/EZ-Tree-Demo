@@ -12,6 +12,7 @@ const MOUSE_SENSITIVITY = 0.0019;
 
 export class FlightControls {
   public speed = 82;
+  private enabled = true;
   private readonly pressed = new Set<string>();
   private readonly velocity = new Vector3();
   private readonly desiredVelocity = new Vector3();
@@ -31,12 +32,22 @@ export class FlightControls {
   }
 
   public update(deltaSeconds: number): void {
+    if (!this.enabled) return;
     this.readMovementIntent();
     const damping = this.desiredVelocity.lengthSq() > 0 ? 6.8 : 4.5;
     this.velocity.x = MathUtils.damp(this.velocity.x, this.desiredVelocity.x, damping, deltaSeconds);
     this.velocity.y = MathUtils.damp(this.velocity.y, this.desiredVelocity.y, damping, deltaSeconds);
     this.velocity.z = MathUtils.damp(this.velocity.z, this.desiredVelocity.z, damping, deltaSeconds);
     this.camera.position.addScaledVector(this.velocity, deltaSeconds);
+  }
+
+  public setEnabled(enabled: boolean): void {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    if (enabled) return;
+    this.clearKeys();
+    this.velocity.set(0, 0, 0);
+    this.desiredVelocity.set(0, 0, 0);
   }
 
   public dispose(): void {

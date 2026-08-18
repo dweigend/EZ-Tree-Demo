@@ -5,6 +5,8 @@ dist/
 # Local browser QA artifacts
 .playwright-cli/
 output/
+playwright-report/
+test-results/
 
 # Local tooling and operating-system files
 *.log

@@ -1,0 +1,15 @@
+{
+  "slots": [
+    { "slot": "meadow", "source": "01-lush-meadow" },
+    { "slot": "valley", "source": "05-wet-valley-loam" },
+    { "slot": "forest", "source": "06-mossy-forest-floor" },
+    { "slot": "exposed", "source": "09-fine-gravel-scree" }
+  ],
+  "roughness": [0.9, 0.96, 0.92, 0.86],
+  "atlasSize": {
+    "desktop": 2048,
+    "pico90": 1024
+  },
+  "gutterPixels": 8,
+  "status": "placeholder-derived-from-existing-ez-tree-textures"
+}

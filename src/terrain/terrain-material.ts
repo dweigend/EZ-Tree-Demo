@@ -1,51 +1,128 @@
 /**
- * Creates the shared world-space terrain material from the EZ-Tree ground texture set.
- * Grass and dirt blending follows the deterministic per-vertex ground-cover field across chunks.
+ * Creates the shared four-surface terrain material from one fixed 2x2 texture atlas.
+ * PICO keeps the former three-sample cost while desktop blends a second normal for fidelity.
  */
 
-import { MeshStandardMaterial } from 'three';
+import { MeshStandardMaterial, Vector4 } from 'three';
 import type { GroundTextureAssets } from '../assets/landscape-assets';
+import { RENDERING } from '../config';
+
+const ATLAS_GUTTER_PIXELS = 8;
 
 export function createTerrainMaterial(textures: GroundTextureAssets): MeshStandardMaterial {
   const material = new MeshStandardMaterial({
-    normalMap: textures.dirtNormal,
-    roughness: 0.96,
+    normalMap: textures.normalAtlas,
+    roughness: 1,
     metalness: 0,
   });
+  material.normalScale.setScalar(0.58);
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.uGrassTexture = { value: textures.grass };
-    shader.uniforms.uDirtTexture = { value: textures.dirtColor };
-    shader.vertexShader = `attribute float aGroundCover;\nvarying vec3 vTerrainWorldPosition;\nvarying float vGroundCover;\n${shader.vertexShader}`;
-    shader.fragmentShader = `uniform sampler2D uGrassTexture;\nuniform sampler2D uDirtTexture;\nvarying vec3 vTerrainWorldPosition;\nvarying float vGroundCover;\n${shader.fragmentShader}`;
+    shader.uniforms.uTerrainAlbedoAtlas = { value: textures.albedoAtlas };
+    shader.uniforms.uTerrainRoughness = { value: new Vector4(...textures.roughness) };
+    shader.uniforms.uTerrainAtlasGutter = { value: ATLAS_GUTTER_PIXELS / textures.atlasSize };
+    shader.vertexShader = `${terrainVertexHeader}\n${shader.vertexShader}`;
+    shader.fragmentShader = `${terrainFragmentHeader}\n${shader.fragmentShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <worldpos_vertex>', worldPositionShader);
     shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', groundColorShader);
-    shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', groundNormalShader);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', groundRoughnessShader);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', createGroundNormalShader());
   };
-  material.customProgramCacheKey = () => 'endless-wilds-terrain-v2';
+  material.customProgramCacheKey = () => `endless-wilds-terrain-atlas-${RENDERING.blendTerrainNormals ? 'dual' : 'single'}`;
   return material;
 }
+
+const terrainVertexHeader = /* glsl */ `
+attribute vec4 aMaterialWeights;
+varying vec3 vTerrainWorldPosition;
+varying vec4 vTerrainMaterialWeights;
+`;
+
+const terrainFragmentHeader = /* glsl */ `
+uniform sampler2D uTerrainAlbedoAtlas;
+uniform vec4 uTerrainRoughness;
+uniform float uTerrainAtlasGutter;
+varying vec3 vTerrainWorldPosition;
+varying vec4 vTerrainMaterialWeights;
+
+vec2 getTerrainAtlasUv(float layer, vec2 repeatedUv) {
+  float column = mod(layer, 2.0);
+  float row = layer < 2.0 ? 1.0 : 0.0;
+  float contentSize = 0.5 - uTerrainAtlasGutter * 2.0;
+  return vec2(column, row) * 0.5 + vec2(uTerrainAtlasGutter) + repeatedUv * contentSize;
+}
+
+float getTerrainRoughness(float layer) {
+  if (layer < 0.5) return uTerrainRoughness.x;
+  if (layer < 1.5) return uTerrainRoughness.y;
+  if (layer < 2.5) return uTerrainRoughness.z;
+  return uTerrainRoughness.w;
+}
+
+void considerTerrainLayer(
+  float weight,
+  float layer,
+  inout float firstWeight,
+  inout float firstLayer,
+  inout float secondWeight,
+  inout float secondLayer
+) {
+  if (weight > firstWeight) {
+    secondWeight = firstWeight;
+    secondLayer = firstLayer;
+    firstWeight = weight;
+    firstLayer = layer;
+  } else if (weight > secondWeight) {
+    secondWeight = weight;
+    secondLayer = layer;
+  }
+}
+`;
 
 const worldPositionShader = /* glsl */ `
 #include <worldpos_vertex>
 vTerrainWorldPosition = worldPosition.xyz;
-vGroundCover = aGroundCover;
+vTerrainMaterialWeights = aMaterialWeights;
 `;
 
 const groundColorShader = /* glsl */ `
-vec2 terrainUv = vTerrainWorldPosition.xz / 18.0;
-vec3 grassColor = texture2D(uGrassTexture, terrainUv).rgb;
-vec3 dirtColor = texture2D(uDirtTexture, terrainUv).rgb;
-vec3 terrainNormal = normalize(cross(dFdx(vTerrainWorldPosition), dFdy(vTerrainWorldPosition)));
-float steepness = 1.0 - abs(terrainNormal.y);
-float sparseGround = 1.0 - smoothstep(0.34, 0.68, vGroundCover);
-float slopeDirt = smoothstep(0.12, 0.48, steepness);
-float highlandDirt = smoothstep(135.0, 235.0, vTerrainWorldPosition.y) * 0.35;
-float dirtMix = clamp(sparseGround * 0.72 + slopeDirt * 0.82 + highlandDirt, 0.0, 1.0);
-diffuseColor.rgb = mix(grassColor, dirtColor, dirtMix) * mix(0.94, 1.08, vGroundCover);
+vec2 terrainRepeatedUv = fract(vTerrainWorldPosition.xz / 18.0);
+float terrainFirstWeight = -1.0;
+float terrainFirstLayer = 0.0;
+float terrainSecondWeight = -1.0;
+float terrainSecondLayer = 0.0;
+considerTerrainLayer(vTerrainMaterialWeights.x, 0.0, terrainFirstWeight, terrainFirstLayer, terrainSecondWeight, terrainSecondLayer);
+considerTerrainLayer(vTerrainMaterialWeights.y, 1.0, terrainFirstWeight, terrainFirstLayer, terrainSecondWeight, terrainSecondLayer);
+considerTerrainLayer(vTerrainMaterialWeights.z, 2.0, terrainFirstWeight, terrainFirstLayer, terrainSecondWeight, terrainSecondLayer);
+considerTerrainLayer(vTerrainMaterialWeights.w, 3.0, terrainFirstWeight, terrainFirstLayer, terrainSecondWeight, terrainSecondLayer);
+float terrainLayerMix = terrainSecondWeight / max(terrainFirstWeight + terrainSecondWeight, 0.0001);
+vec2 terrainFirstUv = getTerrainAtlasUv(terrainFirstLayer, terrainRepeatedUv);
+vec2 terrainSecondUv = getTerrainAtlasUv(terrainSecondLayer, terrainRepeatedUv);
+vec3 terrainFirstColor = texture2D(uTerrainAlbedoAtlas, terrainFirstUv).rgb;
+vec3 terrainSecondColor = texture2D(uTerrainAlbedoAtlas, terrainSecondUv).rgb;
+diffuseColor.rgb *= mix(terrainFirstColor, terrainSecondColor, terrainLayerMix);
 `;
 
-const groundNormalShader = /* glsl */ `
-vec3 mapN = texture2D(normalMap, terrainUv).xyz * 2.0 - 1.0;
-mapN.xy *= normalScale * (0.32 + dirtMix * 0.68);
+const groundRoughnessShader = /* glsl */ `
+float roughnessFactor = mix(
+  getTerrainRoughness(terrainFirstLayer),
+  getTerrainRoughness(terrainSecondLayer),
+  terrainLayerMix
+);
+`;
+
+function createGroundNormalShader(): string {
+  if (!RENDERING.blendTerrainNormals) {
+    return /* glsl */ `
+vec3 mapN = texture2D(normalMap, terrainFirstUv).xyz * 2.0 - 1.0;
+mapN.xy *= normalScale;
 normal = normalize(tbn * mapN);
 `;
+  }
+  return /* glsl */ `
+vec3 firstMapN = texture2D(normalMap, terrainFirstUv).xyz * 2.0 - 1.0;
+vec3 secondMapN = texture2D(normalMap, terrainSecondUv).xyz * 2.0 - 1.0;
+vec3 mapN = normalize(mix(firstMapN, secondMapN, terrainLayerMix));
+mapN.xy *= normalScale;
+normal = normalize(tbn * mapN);
+`;
+}

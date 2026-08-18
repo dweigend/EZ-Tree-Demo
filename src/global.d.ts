@@ -4,9 +4,11 @@
  */
 
 import type { LandscapeDiagnostics } from './world/world-runtime';
+import type { LandscapeBenchmark } from './performance/benchmark-contract';
 
 declare global {
   interface Window {
+    __LANDSCAPE_BENCHMARK__?: LandscapeBenchmark;
     __LANDSCAPE_DIAGNOSTICS__?: LandscapeDiagnostics;
   }
 }

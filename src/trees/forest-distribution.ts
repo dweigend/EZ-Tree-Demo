@@ -22,12 +22,16 @@ export interface TreePlacement {
   readonly windPhase: number;
   readonly windStrength: number;
   readonly tint: number;
+  readonly densityRank: number;
+}
+
+export function acceptsTreeDensity(densityRank: number, density: number): boolean {
+  return densityRank <= density;
 }
 
 export class ForestDistribution {
   private readonly cache = new Map<string, TreePlacement[]>();
   private readonly variantIndices: Record<TreeSpecies, number[]> = {
-    ash: [],
     aspen: [],
     oak: [],
     pine: [],
@@ -83,14 +87,14 @@ export class ForestDistribution {
   private acceptsSite(x: number, z: number, height: number, slope: number, moisture: number, hash: number): boolean {
     const cluster = getWoodland(this.heightField, x, z);
     const grove = this.heightField.getNoise01((x - 90) * 0.0048, (z + 310) * 0.0048, 2);
-    const clearingNoise = this.heightField.getNoise01((x + 70) * 0.009, (z + 20) * 0.009, 2);
-    const clearing = MathUtils.smoothstep(clearingNoise, 0.72, 0.9);
+    const clearingNoise = this.heightField.getNoise01((x + 70) * 0.006, (z + 20) * 0.006, 2);
+    const clearing = MathUtils.smoothstep(clearingNoise, 0.62, 0.82);
     const altitude = MathUtils.smoothstep(height, -35, 24) * (1 - MathUtils.smoothstep(height, 148, 225));
     const slopeFitness = 1 - MathUtils.smoothstep(slope, 0.38, 1.05);
-    const forestCore = MathUtils.smoothstep(cluster, 0.46, 0.72) * (0.36 + moisture * 0.48);
-    const forestEdge = MathUtils.smoothstep(grove, 0.58, 0.82) * 0.2;
+    const forestCore = MathUtils.smoothstep(cluster, 0.4, 0.68) * (0.42 + moisture * 0.5);
+    const forestEdge = MathUtils.smoothstep(grove, 0.58, 0.82) * 0.16;
     const isolatedChance = unitRandom(hashCoordinates(hash, 11, 29)) > 0.965 ? 0.16 : 0;
-    const probability = (forestCore + forestEdge) * altitude * slopeFitness * (1 - clearing * 0.9) * 2.35 + isolatedChance;
+    const probability = (forestCore + forestEdge) * altitude * slopeFitness * (1 - clearing * 0.98) * 1.28 + isolatedChance;
     return unitRandom(hashCoordinates(hash, 7, 13)) < probability;
   }
 
@@ -107,6 +111,7 @@ export class ForestDistribution {
       windPhase: unitRandom(hashCoordinates(hash, 37, 41)) * Math.PI * 2,
       windStrength: 0.72 + unitRandom(hashCoordinates(hash, 43, 47)) * 0.48,
       tint: unitRandom(hashCoordinates(hash, 53, 59)),
+      densityRank: unitRandom(hashCoordinates(hash, 79, 83)),
     };
   }
 
@@ -124,8 +129,7 @@ export class ForestDistribution {
     const pineAffinity = highland * 0.62 + MathUtils.smoothstep(slope, 0.32, 0.8) * 0.18 + (1 - moisture) * 0.16;
     if (biome < pineAffinity) return 'pine';
     const wetland = moisture * 0.68 + biome * 0.32;
-    if (wetland > 0.7) return 'aspen';
-    if (wetland > 0.53) return 'ash';
+    if (wetland > 0.58) return 'aspen';
     return 'oak';
   }
 }
