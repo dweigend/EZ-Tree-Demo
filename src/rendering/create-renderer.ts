@@ -17,6 +17,7 @@ export function createRenderer(): WebGLRenderer {
   renderer.toneMappingExposure = 1.45;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
+  // Pixel ratio is a fill-rate budget; uncapped Retina resolution breaks the measured frame-time profile.
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDERING.pixelRatioCap));
   renderer.setSize(window.innerWidth, window.innerHeight);
   return renderer;

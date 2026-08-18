@@ -102,6 +102,7 @@ export class TreeSystem {
     if (!this.isInRenderWindow(placement, renderWindow, distance)) return;
     const variant = this.variants[placement.variant];
     const lodIndex = this.getLodIndex(distance);
+    // Distant species share one silhouette so each LOD needs one pair of global batches, not one pair per species.
     const batchIndex = lodIndex === 0 ? placement.variant : SHARED_DISTANCE_VARIANT_INDEX;
     const batch = lodIndex === null ? undefined : this.batches[batchIndex]?.[lodIndex];
     if (!variant || !batch || batch.count >= VEGETATION.treeBatchCapacity) return;
@@ -164,6 +165,7 @@ export class TreeSystem {
     const strength = createDynamicScalarAttribute(VEGETATION.treeBatchCapacity);
     leaves.geometry.setAttribute('aWindPhase', phase);
     leaves.geometry.setAttribute('aWindStrength', strength);
+    // Shadow casters are restricted to near LODs; distant shadow geometry exceeds its visible benefit.
     branches.castShadow = lod === 'near';
     leaves.castShadow = VEGETATION.leafShadows && lod === 'near';
     this.group.add(branches, leaves);

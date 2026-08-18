@@ -158,6 +158,7 @@ export class WorldRuntime {
   }
 
   private processBackgroundWork(chunkWindowChanged: boolean, vegetationRefreshed: boolean): void {
+    // Never stack optional prefetch/resampling work on a frame that already rebuilt a render window.
     if (chunkWindowChanged || vegetationRefreshed) return;
     this.processBackgroundStep();
   }
@@ -192,6 +193,7 @@ export class WorldRuntime {
   }
 
   private processBackgroundStep(): void {
+    // Round-robin ownership prevents one subsystem from monopolising consecutive idle frames.
     if (this.backgroundStep === 0) this.trees.prefetchNextChunk(this.camera.position, this.viewDirection);
     if (this.backgroundStep === 1) this.groundCover.prefetchNextChunk(this.camera.position, this.viewDirection);
     if (this.backgroundStep === 2) this.terrain.processNextChunk();

@@ -106,3 +106,5 @@ Vegetations-, Stein- und Bodenassets werden lokal ausgeliefert. Herkunft und Liz
 [`public/assets/ATTRIBUTION.md`](public/assets/ATTRIBUTION.md) dokumentiert.
 
 Gemessene Budgets und priorisierte nächste Optimierungen stehen in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+Der aktuelle Übergabestand, Performance-Invarianten und bekannte Grenzen stehen in
+[`docs/HANDOFF.md`](docs/HANDOFF.md).

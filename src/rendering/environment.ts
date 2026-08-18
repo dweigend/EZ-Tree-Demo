@@ -41,6 +41,7 @@ export class Environment {
   }
 
   public update(camera: PerspectiveCamera): void {
+    // Move one bounded shadow volume with the viewer instead of shadowing the entire streamed world.
     this.sky.position.copy(camera.position);
     this.target.position.copy(camera.position);
     this.target.position.y -= 80;

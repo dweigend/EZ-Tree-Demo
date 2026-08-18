@@ -131,6 +131,8 @@ export class GroundCoverSystem {
 }
 
 function createLowPolyGeometry(source: BufferGeometry, retainedFraction: number): BufferGeometry {
+  // Runtime decimation protects the current triangle budget, but 22% retention can open textured UV seams.
+  // Replace this with verified watertight offline LOD assets before increasing fidelity; see docs/HANDOFF.md.
   const vertexCount = source.getAttribute('position').count;
   const removeCount = Math.floor(vertexCount * (1 - retainedFraction));
   try {

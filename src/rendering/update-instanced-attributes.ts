@@ -36,6 +36,7 @@ export function finaliseInstancedMesh(mesh: InstancedMesh, count: number, ...att
 }
 
 function updateAttributePrefix(attribute: BufferAttribute, itemCount: number): void {
+  // Capacity stays fixed, but only populated instance data crosses the CPU-GPU boundary after a rebuild.
   attribute.clearUpdateRanges();
   attribute.addUpdateRange(0, itemCount * attribute.itemSize);
   attribute.needsUpdate = true;

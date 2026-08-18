@@ -134,6 +134,7 @@ export class GrassSystem {
 
   public update(cameraPosition: Vector3): void {
     const distance = Math.hypot(cameraPosition.x - this.lastAnchor.x, cameraPosition.z - this.lastAnchor.z);
+    // Reuse the previous meadow window until movement makes its distribution visibly stale.
     if (!this.buildJob && distance >= VEGETATION.grassRefreshDistance) this.startBuild(cameraPosition);
     this.processBuildJob();
   }
@@ -166,6 +167,7 @@ export class GrassSystem {
   private processBuildJob(): void {
     const job = this.buildJob;
     if (!job) return;
+    // The fixed candidate budget spreads noise and height sampling over frames without changing final density.
     for (let processed = 0; processed < GRASS_CANDIDATES_PER_FRAME; processed += 1) {
       if (job.currentZ > job.maxZ || this.areBatchesFull(job)) {
         this.completeBuild(job);

@@ -28,6 +28,7 @@ interface QualityProfile {
   readonly xrFoveation: number;
 }
 
+// Keep quality immutable so hot render paths contain no adaptive-quality branches or allocation churn.
 const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
   desktop: {
     name: 'desktop',

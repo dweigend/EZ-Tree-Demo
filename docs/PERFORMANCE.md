@@ -50,7 +50,8 @@ sind aber kein Ersatz für eine XR-Session auf dem Headset.
 - Jeder Baum rendert einen Stamm. Mittel-/Fernstämme nutzen einen 4- bis 5-seitigen Distanzstamm statt
   des kompletten Astnetzes.
 - Steingeometrien werden einmal beim Start auf 22 % der Vertices reduziert. Distribution, Varianten
-  und lizenzierte Ausgangsassets bleiben unverändert.
+  und lizenzierte Ausgangsassets bleiben unverändert. Diese aggressive Laufzeit-Decimation beschädigt
+  nachweislich UV-Nähte und Normalen; Messwerte und der watertichte Offline-LOD-Fix stehen in `docs/HANDOFF.md`.
 - Gras nutzt zwei feste Instancing-Batches. Drei normalisierte Poly-Pizza-Patches werden einmalig zu
   einem Wiesen-Cluster zusammengefügt; günstige Büschel ergänzen deren Zwischenräume mit variierter Höhe.
 - Eine grobe 11,5-m-Weltmatrix wird durch 90 % Jitter und drei überlagerte Habitat-Noise-Felder

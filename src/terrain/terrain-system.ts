@@ -37,6 +37,7 @@ export class TerrainSystem {
   public constructor(heightField: HeightField, textures: GroundTextureAssets) {
     const material = createTerrainMaterial(textures);
     const diameter = TERRAIN.chunkRadius * 2 + 1;
+    // Allocate the complete window once; reassignment mutates buffers instead of creating meshes during flight.
     for (let index = 0; index < diameter * diameter; index += 1) {
       const chunk = new TerrainChunk(heightField, material);
       this.chunks.push(chunk);
@@ -59,6 +60,7 @@ export class TerrainSystem {
   }
 
   public processNextChunk(): void {
+    // One assignment per idle frame bounds terrain resampling spikes after a window shift.
     this.processNextAssignment();
   }
 

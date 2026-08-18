@@ -169,6 +169,7 @@ vec3 terrainSecondColor = texture2D(uTerrainAlbedoAtlas, terrainSecondUv).rgb;
 diffuseColor.rgb *= mix(terrainFirstColor, terrainSecondColor, terrainLayerMix);
 `;
 
+// One dominant packed sample preserves normal/roughness detail without doubling fragment texture bandwidth.
 const groundSurfaceSampleShader = /* glsl */ `
 vec4 terrainFirstSurface = texture2D(normalMap, terrainFirstUv);
 `;
