@@ -1,12 +1,11 @@
 /**
- * Deterministically derives sparse flowers and rocks from terrain chunks.
+ * Deterministically derives sparse rocks from terrain chunks.
  * Cached data contains only placement values and is shared by the global instanced render batches.
  */
 
 import { MathUtils, Vector3 } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
-import { getGroundCover, getWoodland } from '../ecology/landscape-ecology';
 import type { HeightField } from '../core/height-field';
 
 interface GroundPlacement {
@@ -19,17 +18,11 @@ interface GroundPlacement {
   readonly tint: number;
 }
 
-export interface FlowerPlacement extends GroundPlacement {
-  readonly windPhase: number;
-  readonly windStrength: number;
-}
-
 export interface RockPlacement extends GroundPlacement {
   readonly normal: readonly [number, number, number];
 }
 
 export interface GroundCoverPlacements {
-  readonly flowers: readonly FlowerPlacement[];
   readonly rocks: readonly RockPlacement[];
 }
 
@@ -50,56 +43,10 @@ export class GroundCoverDistribution {
       this.cache.set(key, cached);
       return cached;
     }
-    const placements = {
-      flowers: this.createFlowers(chunkX, chunkZ),
-      rocks: this.createRocks(chunkX, chunkZ),
-    } satisfies GroundCoverPlacements;
+    const placements = { rocks: this.createRocks(chunkX, chunkZ) } satisfies GroundCoverPlacements;
     this.cache.set(key, placements);
     if (this.cache.size > VEGETATION.placementCacheSize) this.cache.delete(this.cache.keys().next().value!);
     return placements;
-  }
-
-  private createFlowers(chunkX: number, chunkZ: number): FlowerPlacement[] {
-    const flowers: FlowerPlacement[] = [];
-    const cells = Math.floor(TERRAIN.chunkSize / VEGETATION.flowerSpacing);
-    for (let z = 0; z < cells; z += 1) {
-      for (let x = 0; x < cells; x += 1) {
-        const placement = this.createFlower(chunkX, chunkZ, x, z, cells);
-        if (placement) flowers.push(placement);
-      }
-    }
-    return flowers;
-  }
-
-  private createFlower(chunkX: number, chunkZ: number, cellX: number, cellZ: number, cells: number): FlowerPlacement | null {
-    const hash = hashCoordinates(this.seed, chunkX * cells + cellX, chunkZ * cells + cellZ, 0x4f11);
-    const x = this.getWorldCoordinate(chunkX, cellX, hash, cells, VEGETATION.flowerSpacing);
-    const z = this.getWorldCoordinate(chunkZ, cellZ, hash, cells, VEGETATION.flowerSpacing);
-    const height = this.heightField.getHeight(x, z);
-    if (height < -30 || height > 155) return null;
-    const slope = this.heightField.getSlope(x, z);
-    if (slope > 0.56) return null;
-    const cover = getGroundCover(this.heightField, x, z, height);
-    const woodland = getWoodland(this.heightField, x, z);
-    const forestEdge = 1 - Math.abs(woodland - 0.56) * 2;
-    const denseForest = MathUtils.smoothstep(woodland, 0.7, 0.9);
-    const probability = MathUtils.smoothstep(cover, 0.3, 0.72) * (0.44 + Math.max(0, forestEdge) * 0.2) * (1 - denseForest * 0.55);
-    if (unitRandom(hashCoordinates(hash, 7, 13)) >= probability) return null;
-    return this.buildFlower(x, z, height, hash);
-  }
-
-  private buildFlower(x: number, z: number, y: number, hash: number): FlowerPlacement {
-    return {
-      x,
-      y,
-      z,
-      rotation: unitRandom(hashCoordinates(hash, 17, 19)) * Math.PI * 2,
-      scale: 0.7 + unitRandom(hashCoordinates(hash, 23, 29)) * 0.65,
-      variant: hashCoordinates(hash, 31, 37) % 3,
-      windPhase: unitRandom(hashCoordinates(hash, 41, 43)) * Math.PI * 2,
-      windStrength: 0.6 + unitRandom(hashCoordinates(hash, 47, 53)) * 0.45,
-      tint: unitRandom(hashCoordinates(hash, 59, 61)),
-    };
   }
 
   private createRocks(chunkX: number, chunkZ: number): RockPlacement[] {

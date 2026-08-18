@@ -6,7 +6,7 @@ Die Landschaft priorisiert stabile Framezeiten vor maximaler Objektdichte. Die M
 
 - Terrain: 49 recycelte Chunks bei der Standardsichtweite
 - Vegetationsdetail: 31 blickrichtungsgewichtete Chunks mit vollem 3×3-Sicherheitskern
-- Rendering: globale Instancing-Batches, drei einmalig erzeugte EZ-Tree-Templates, gemeinsame Mittel-/Fern-LODs, ein Gras-Batch und sechs Ground-Cover-Batches
+- Rendering: globale Instancing-Batches, drei einmalig erzeugte EZ-Tree-Templates, gemeinsame Mittel-/Fern-LODs, zwei Gras-Batches und drei Stein-Batches
 - Streaming: Baum-Rebuild, Ground-Cover-Rebuild und Terrain-Resample werden auf getrennte Frames verteilt
 - Buffer: dynamische Instanzattribute laden nur den tatsächlich belegten Präfix über die Three.js-Update-Ranges hoch
 - Sichtkanten: Distanz-Ausdünnung, harte LOD-Bänder und abgestimmter Fog statt doppelter Instanzen in Kreuzblenden
@@ -29,29 +29,34 @@ Ein selektiver Blur außerhalb des Blickfelds ist bewusst nicht vorgesehen: Der 
 
 ## Verifizierter Stand vom 18. August 2026
 
-Desktop Chrome, 1280×720, Profil `desktop`, deterministischer Flug mit 220 m/s. Drei Wiederholungen
-lieferten jeweils 120 FPS; der finale Kontrolllauf lag bei p50 8,3 ms, p95 9,1 ms und p99 9,3 ms.
-Es gab keinen Frame über 16,7 ms. Am Routenende lagen 802 Bäume bei 28 Draw Calls und 0,68 M Dreiecken.
+Desktop Chrome, 1280×720, Profil `desktop`, deterministischer Flug mit 220 m/s. Der finale
+12-Sekunden-Kontrolllauf lieferte 120 FPS bei p50 8,3 ms, p95 9,6 ms und p99 10,3 ms. Es gab
+keinen Frame über 16,7 ms. Am Routenende lagen 877 Bäume, 60 Wiesen-Cluster und 42 Grasbüschel bei
+27 Draw Calls und 2,29 M Dreiecken.
 
-Der statische Startbereich enthält nach Warm-up 655 Bäume, 57.775 Grashalme, 1.418 Blumen und 682
-Steine bei 37 Draw Calls und 1,99 M Dreiecken. Gegenüber dem vorherigen Stand steigt die sichtbare
-Baummenge trotz kürzerem Fern-LOD um 28 %. Die lokale Dichte steigt bei Gras um 83 %, bei Blumen um
-42 % und bei Steinen um 52 %, weil die zuvor vergrößerten Render-Radien zurückgenommen wurden.
+Der statische Startbereich enthält nach Warm-up 655 Bäume, 60 Wiesen-Cluster, 35 größere Grasbüschel
+und 682 Steine bei 35 Draw Calls und 2,68 M Dreiecken. Ein Cluster kombiniert drei leicht versetzte
+Grass-Patch-Kopien. Die 180 sichtbaren Quell-Patches bilden dadurch kleine zusammenhängende Wiesen,
+während große Flächen gemäß Habitatmaske bewusst grasfrei bleiben. Blumen sind vollständig entfernt.
 
-Das PICO-Profil rendert im Desktop-Browser denselben Startbereich mit 214 Bäumen, 20.411 Grashalmen,
-714 Blumen und 186 Steinen bei 28 Calls und 0,70 M Dreiecken. Die lokale Dichte steigt gegenüber dem
-vorherigen Profil bei Gras um 109 %, bei Blumen um 46 % und bei Steinen um 35 %. Diese Werte prüfen
-Profilbudgets, sind aber kein Ersatz für eine XR-Session auf dem Headset.
+Das PICO-Profil rendert im Desktop-Browser denselben Startbereich mit 214 Bäumen, 16 Wiesen-Clustern,
+11 Grasbüscheln und 186 Steinen bei 26 Calls und 0,799 M Dreiecken. Diese Werte prüfen Profilbudgets,
+sind aber kein Ersatz für eine XR-Session auf dem Headset.
 
 ### Renderstrategie
 
 - Mittel- und Fernbäume teilen pro LOD eine Geometrie und werden nur im vorderen Sicht-Halbraum aufgebaut.
 - Jeder Baum rendert einen Stamm. Mittel-/Fernstämme nutzen einen 4- bis 5-seitigen Distanzstamm statt
   des kompletten Astnetzes.
-- Blumen- und Steingeometrien werden einmal beim Start auf 28 % beziehungsweise 22 % der Vertices
-  reduziert. Distribution, Varianten und lizenzierte Ausgangsassets bleiben unverändert.
-- Gras nutzt weiterhin einen Draw Call. 90 % Zell-Jitter entfernt sichtbare Rasterlinien; 400 Kandidaten
-  pro Frame begrenzen CPU-Spitzen während des Neuaufbaus.
+- Steingeometrien werden einmal beim Start auf 22 % der Vertices reduziert. Distribution, Varianten
+  und lizenzierte Ausgangsassets bleiben unverändert.
+- Gras nutzt zwei feste Instancing-Batches. Drei normalisierte Poly-Pizza-Patches werden einmalig zu
+  einem Wiesen-Cluster zusammengefügt; günstige Büschel ergänzen deren Zwischenräume mit variierter Höhe.
+- Eine grobe 11,5-m-Weltmatrix wird durch 90 % Jitter und drei überlagerte Habitat-Noise-Felder
+  aufgebrochen. Nur geeignete flache, offene Bereiche erhalten Gras. 160 Kandidaten pro Frame begrenzen
+  CPU-Spitzen, danach entstehen weder neue Objekte noch Per-Frame-Transformupdates.
+- Beide Grasmodelle teilen denselben Vertex-Shader-Wind. Höhenbasierte Bend-Weights fixieren die Wurzeln;
+  Phase und Stärke variieren pro Instanz ohne CPU-Animation.
 - Vegetation wird nach einer Richtungsänderung von etwa 20 Grad neu aufgebaut. So bleibt die
   richtungsgewichtete Auswahl bei interaktivem Flug korrekt, ohne per-frame Objekt-Culling einzuführen.
 
@@ -68,5 +73,5 @@ Profilbudgets, sind aber kein Ersatz für eine XR-Session auf dem Headset.
 6. Zehnmal VR betreten und verlassen; es dürfen keine Shader-, Naht-, Atlas- oder Lifecycle-Fehler auftreten.
 
 Wenn 90 Hz nicht gehalten werden, wird ohne Auto-Scaler zuerst der XR-Framebuffer auf 0,65 reduziert,
-dann Gras auf 100 m/14.000 Instanzen, anschließend Tree-Dichte auf 0,55 mit 400 m Far-LOD und zuletzt
-Schatten auf 60 m/512 px. Jeder Schritt wird isoliert erneut gemessen.
+dann der Grasradius auf 100 m und die Wiesen-Cluster auf 12 begrenzt, anschließend Tree-Dichte auf 0,55
+mit 400 m Far-LOD und zuletzt Schatten auf 60 m/512 px. Jeder Schritt wird isoliert erneut gemessen.

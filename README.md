@@ -1,6 +1,6 @@
 # Endless Wilds
 
-Experimenteller WebGL2-Prototyp einer praktisch unendlichen, prozedural erzeugten Landschaft mit frei steuerbarem Flug, gestreamten Terrain-Chunks und instanzierter Vegetation aus EZ-Tree-Assets.
+Experimenteller WebGL2-Prototyp einer praktisch unendlichen, prozedural erzeugten Landschaft mit frei steuerbarem Flug, gestreamten Terrain-Chunks und instanzierter Vegetation aus lizenzierten Assets.
 
 ## Start
 
@@ -51,9 +51,9 @@ Reproduzierbare Flugmessungen laufen ohne Pointer-Lock über `benchmark=desktop-
 - `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und vier organisch gemischte Atlas-Materialien
 - `ecology/`: gemeinsame Feuchte-, Bodenbedeckungs- und Wald-Makrofelder ohne Platzierungsregeln
 - `trees/`: drei offizielle mittlere EZ-Tree-Templates in globalen Instancing-Batches und drei harten LOD-Bändern
-- `vegetation/`: deterministische Wald-, Blumen- und Steinverteilung; sechs globale Ground-Cover-Batches
-- `grass/`: ein kamera-zentriertes Instancing-Batch mit Distanz-Ausdünnung und inkrementellem Aufbau
-- `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume, Gras und Blumen
+- `vegetation/`: deterministische Steinverteilung in drei globalen Ground-Cover-Batches
+- `grass/`: organische Wiesenmaske, zusammengesetzte Patch-Cluster und größere Büschel in zwei Instancing-Batches
+- `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume und beide Grasebenen
 - `controls/`: isolierte Pointer-Lock-Flugsteuerung
 - `rendering/`: WebGL2, Color Management, atmosphärischer Himmel, Fog und begrenzte Schatten
 - `world/`: explizite Frame-Reihenfolge und Lifecycle
@@ -97,9 +97,9 @@ Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder verschwinde
 
 - Three.js
 - [EZ-Tree](https://github.com/dgreenheck/ez-tree), MIT License, Daniel Greenheck
+- [Poly Pizza](https://poly.pizza/), Grass Patch und Tuft of grass, CC BY 3.0
 
-Vegetations-, Stein- und Bodenassets stammen aus der offiziellen EZ-Tree-Demo und werden lokal
-ausgeliefert. Herkunft und Lizenzen sind unter [`public/assets/ATTRIBUTION.md`](public/assets/ATTRIBUTION.md)
-dokumentiert.
+Vegetations-, Stein- und Bodenassets werden lokal ausgeliefert. Herkunft und Lizenzen sind unter
+[`public/assets/ATTRIBUTION.md`](public/assets/ATTRIBUTION.md) dokumentiert.
 
 Gemessene Budgets und priorisierte nächste Optimierungen stehen in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).

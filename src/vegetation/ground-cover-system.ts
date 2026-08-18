@@ -1,5 +1,5 @@
 /**
- * Renders deterministic flowers and rocks through six fixed-capacity global InstancedMeshes.
+ * Renders deterministic rocks through three fixed-capacity global InstancedMeshes.
  * Batches rebuild only with the existing terrain window and never create per-instance Object3Ds.
  */
 
@@ -8,7 +8,6 @@ import {
   Color,
   DynamicDrawUsage,
   Group,
-  InstancedBufferAttribute,
   InstancedMesh,
   Material,
   Matrix4,
@@ -18,33 +17,25 @@ import {
 import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import type { InstancedModelAsset, LandscapeAssets } from '../assets/landscape-assets';
 import { TERRAIN, VEGETATION } from '../config';
-import { createDynamicScalarAttribute, finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
+import { finaliseInstancedMesh } from '../rendering/update-instanced-attributes';
 import { ChunkPrefetchQueue, getChunkIndex, getChunkViewWindow, type HorizontalDirection } from '../world/chunk-coordinates';
-import type { WindUniforms } from '../wind/wind-field';
-import type { FlowerPlacement, GroundCoverDistribution, RockPlacement } from './ground-cover-distribution';
-import { createFlowerMaterial, createRockMaterial } from './ground-cover-materials';
+import type { GroundCoverDistribution, RockPlacement } from './ground-cover-distribution';
+import { createRockMaterial } from './ground-cover-materials';
 
 interface GroundCoverBatch {
   readonly mesh: InstancedMesh<BufferGeometry, Material | Material[]>;
-  readonly phase?: InstancedBufferAttribute;
-  readonly strength?: InstancedBufferAttribute;
   count: number;
 }
 
 const UP = new Vector3(0, 1, 0);
 const WHITE = new Color('#ffffff');
-const FLOWER_DARK = new Color('#d9dec8');
-const FLOWER_LIGHT = new Color('#ffffff');
 const ROCK_DARK = new Color('#9b9488');
 const ROCK_LIGHT = new Color('#c3b9a8');
 
 export class GroundCoverSystem {
   public readonly group = new Group();
-  public visibleFlowerCount = 0;
   public visibleRockCount = 0;
-  private readonly flowerBatches: GroundCoverBatch[];
   private readonly rockBatches: GroundCoverBatch[];
-  private readonly batches: readonly GroundCoverBatch[];
   private readonly transform = new Matrix4();
   private readonly rotation = new Quaternion();
   private readonly yaw = new Quaternion();
@@ -57,11 +48,8 @@ export class GroundCoverSystem {
   public constructor(
     assets: LandscapeAssets,
     private readonly distribution: GroundCoverDistribution,
-    wind: WindUniforms,
   ) {
-    this.flowerBatches = assets.flowers.map((asset) => this.createFlowerBatch(asset, wind));
     this.rockBatches = assets.rocks.map((asset) => this.createRockBatch(asset));
-    this.batches = [...this.flowerBatches, ...this.rockBatches];
   }
 
   public rebuild(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
@@ -76,7 +64,7 @@ export class GroundCoverSystem {
   }
 
   public dispose(): void {
-    for (const batch of this.batches) {
+    for (const batch of this.rockBatches) {
       batch.mesh.geometry.dispose();
       const materials = Array.isArray(batch.mesh.material) ? batch.mesh.material : [batch.mesh.material];
       materials.forEach((material) => material.dispose());
@@ -89,27 +77,8 @@ export class GroundCoverSystem {
     const centerZ = getChunkIndex(cameraPosition.z);
     for (const coordinate of getChunkViewWindow(centerX, centerZ, TERRAIN.chunkRadius, viewDirection)) {
       const placements = this.distribution.getChunkPlacements(coordinate.x, coordinate.z);
-      placements.flowers.forEach((placement) => this.addFlower(placement, cameraPosition));
       placements.rocks.forEach((placement) => this.addRock(placement, cameraPosition));
     }
-  }
-
-  private addFlower(placement: FlowerPlacement, cameraPosition: Vector3): void {
-    if (this.horizontalDistance(placement, cameraPosition) > VEGETATION.flowerDistance) return;
-    const batch = this.flowerBatches[placement.variant];
-    if (!batch || batch.count >= VEGETATION.flowerBatchCapacity) return;
-    const index = batch.count;
-    this.position.set(placement.x, placement.y - 0.02, placement.z);
-    this.rotation.setFromAxisAngle(UP, placement.rotation);
-    this.scale.setScalar(placement.scale);
-    this.transform.compose(this.position, this.rotation, this.scale);
-    batch.mesh.setMatrixAt(index, this.transform);
-    batch.phase?.setX(index, placement.windPhase);
-    batch.strength?.setX(index, placement.windStrength);
-    this.color.copy(FLOWER_DARK).lerp(FLOWER_LIGHT, 0.45 + placement.tint * 0.55);
-    batch.mesh.setColorAt(index, this.color);
-    batch.count += 1;
-    this.visibleFlowerCount += 1;
   }
 
   private addRock(placement: RockPlacement, cameraPosition: Vector3): void {
@@ -134,19 +103,6 @@ export class GroundCoverSystem {
     this.visibleRockCount += 1;
   }
 
-  private createFlowerBatch(asset: InstancedModelAsset, wind: WindUniforms): GroundCoverBatch {
-    const geometry = createLowPolyGeometry(asset.geometry, 0.28);
-    const phase = createDynamicScalarAttribute(VEGETATION.flowerBatchCapacity);
-    const strength = createDynamicScalarAttribute(VEGETATION.flowerBatchCapacity);
-    geometry.setAttribute('aWindPhase', phase);
-    geometry.setAttribute('aWindStrength', strength);
-    const sourceMaterial = asset.materials[1] ?? asset.materials[0];
-    if (!sourceMaterial) throw new Error('Flower asset has no material.');
-    const mesh = this.createMesh(geometry, [createFlowerMaterial(sourceMaterial, wind)], VEGETATION.flowerBatchCapacity);
-    this.group.add(mesh);
-    return { mesh, phase, strength, count: 0 };
-  }
-
   private createRockBatch(asset: InstancedModelAsset): GroundCoverBatch {
     const materials = asset.materials.map(createRockMaterial);
     const mesh = this.createMesh(createLowPolyGeometry(asset.geometry, 0.22), materials, VEGETATION.rockBatchCapacity);
@@ -169,13 +125,12 @@ export class GroundCoverSystem {
   }
 
   private resetBatches(): void {
-    this.visibleFlowerCount = 0;
     this.visibleRockCount = 0;
-    for (const batch of this.batches) batch.count = 0;
+    for (const batch of this.rockBatches) batch.count = 0;
   }
 
   private finaliseBatches(): void {
-    for (const batch of this.batches) finaliseInstancedMesh(batch.mesh, batch.count, batch.phase, batch.strength);
+    for (const batch of this.rockBatches) finaliseInstancedMesh(batch.mesh, batch.count);
   }
 
   private horizontalDistance(placement: { readonly x: number; readonly z: number }, cameraPosition: Vector3): number {

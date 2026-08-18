@@ -23,8 +23,8 @@ export interface GroundTextureAssets {
 
 export interface LandscapeAssets {
   readonly ground: GroundTextureAssets;
-  readonly grass: InstancedModelAsset;
-  readonly flowers: readonly [InstancedModelAsset, InstancedModelAsset, InstancedModelAsset];
+  readonly meadowPatch: InstancedModelAsset;
+  readonly grassTuft: InstancedModelAsset;
   readonly rocks: readonly [InstancedModelAsset, InstancedModelAsset, InstancedModelAsset];
 }
 
@@ -41,25 +41,23 @@ export async function loadLandscapeAssets(): Promise<LandscapeAssets> {
   const dracoLoader = new DRACOLoader().setDecoderPath('/assets/draco/');
   const modelLoader = new GLTFLoader().setDRACOLoader(dracoLoader);
   try {
-    const [ground, grass, white, yellow, blue, rock1, rock2, rock3] = await Promise.all([
+    const [ground, meadowPatch, grassTuft, rock1, rock2, rock3] = await Promise.all([
       loadGroundTextures(),
-      loadModel(modelLoader, `${VEGETATION_PATH}/grass.glb`),
-      loadModel(modelLoader, `${VEGETATION_PATH}/flower_white.glb`),
-      loadModel(modelLoader, `${VEGETATION_PATH}/flower_yellow.glb`),
-      loadModel(modelLoader, `${VEGETATION_PATH}/flower_blue.glb`),
+      loadModel(modelLoader, `${VEGETATION_PATH}/grass-patch.glb`),
+      loadModel(modelLoader, `${VEGETATION_PATH}/grass-tuft.glb`),
       loadModel(modelLoader, `${ROCK_PATH}/rock1.glb`),
       loadModel(modelLoader, `${ROCK_PATH}/rock2.glb`),
       loadModel(modelLoader, `${ROCK_PATH}/rock3.glb`),
     ]);
-    return { ground, grass, flowers: [white, yellow, blue], rocks: [rock1, rock2, rock3] };
+    return { ground, meadowPatch, grassTuft, rocks: [rock1, rock2, rock3] };
   } finally {
     dracoLoader.dispose();
   }
 }
 
 export function disposeLandscapeAssets(assets: LandscapeAssets): void {
-  const textures = new Set<Texture>(Object.values(assets.ground));
-  const models = [assets.grass, ...assets.flowers, ...assets.rocks];
+  const textures = new Set<Texture>([assets.ground.albedoAtlas, assets.ground.normalAtlas]);
+  const models = [assets.meadowPatch, assets.grassTuft, ...assets.rocks];
   for (const model of models) {
     model.geometry.dispose();
     for (const material of model.materials) {

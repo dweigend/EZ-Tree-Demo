@@ -31,8 +31,8 @@ export interface LandscapeDiagnostics {
   drawCalls: number;
   triangles: number;
   trees: number;
-  grassBlades: number;
-  flowers: number;
+  grassPatches: number;
+  grassTufts: number;
   rocks: number;
   activeChunks: number;
   detailedChunks: number;
@@ -81,13 +81,19 @@ export class WorldRuntime {
     mount.append(this.renderer.domElement);
     this.terrain = new TerrainSystem(this.heightField, assets.ground);
     this.controls = new FlightControls(this.camera, this.renderer.domElement);
-    this.grass = new GrassSystem(this.heightField, hashString(`${WORLD_SEED}:grass`), this.wind.uniforms, assets.grass);
+    this.grass = new GrassSystem({
+      heightField: this.heightField,
+      seed: hashString(`${WORLD_SEED}:grass`),
+      wind: this.wind.uniforms,
+      meadowPatch: assets.meadowPatch,
+      grassTuft: assets.grassTuft,
+    });
     const variants = createTreeVariants(this.wind.uniforms, hashString(`${WORLD_SEED}:tree-templates`));
     const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`), variants);
     this.trees = new TreeSystem(variants, forest);
     const groundCoverDistribution = new GroundCoverDistribution(this.heightField, hashString(`${WORLD_SEED}:ground-cover`));
-    this.groundCover = new GroundCoverSystem(assets, groundCoverDistribution, this.wind.uniforms);
-    this.scene.add(this.terrain.group, this.trees.group, this.grass.mesh, this.groundCover.group);
+    this.groundCover = new GroundCoverSystem(assets, groundCoverDistribution);
+    this.scene.add(this.terrain.group, this.trees.group, this.grass.group, this.groundCover.group);
     this.diagnostics = createInitialDiagnostics();
     window.__LANDSCAPE_DIAGNOSTICS__ = this.diagnostics;
     window.__LANDSCAPE_BENCHMARK__ = {
@@ -206,8 +212,8 @@ export class WorldRuntime {
       drawCalls: info.render.calls,
       triangles: info.render.triangles,
       trees: this.trees.visibleTreeCount,
-      grassBlades: this.grass.visibleBladeCount,
-      flowers: this.groundCover.visibleFlowerCount,
+      grassPatches: this.grass.visiblePatchCount,
+      grassTufts: this.grass.visibleTuftCount,
       rocks: this.groundCover.visibleRockCount,
       activeChunks: this.terrain.activeChunkCount,
       detailedChunks: this.trees.activeChunkCount,
@@ -248,8 +254,8 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
     drawCalls: 0,
     triangles: 0,
     trees: 0,
-    grassBlades: 0,
-    flowers: 0,
+    grassPatches: 0,
+    grassTufts: 0,
     rocks: 0,
     activeChunks: 0,
     detailedChunks: 0,
@@ -265,5 +271,5 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
 
 function formatDiagnostics(value: LandscapeDiagnostics): string {
   const triangles = Math.round(value.triangles / 1_000);
-  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassBlades.toLocaleString()} grass · ${value.flowers} flowers · ${value.rocks} rocks · ${value.activeChunks}/${value.detailedChunks} chunks · ${value.viewDistance} m · r${value.relief.toFixed(2)}`;
+  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassPatches} meadows · ${value.grassTufts} tufts · ${value.rocks} rocks · ${value.activeChunks}/${value.detailedChunks} chunks · ${value.viewDistance} m · r${value.relief.toFixed(2)}`;
 }

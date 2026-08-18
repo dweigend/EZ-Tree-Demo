@@ -1,49 +1,70 @@
 /**
- * Prepares EZ-Tree grass geometry and its shared wind material.
- * Bend weights derive from geometry height so roots stay pinned regardless of asset UV layout.
+ * Normalises imported grass geometry and creates its shared GPU-wind material.
+ * Source proportions and colours remain intact; roots stay pinned through height-based bend weights.
  */
 
-import { BufferAttribute, BufferGeometry, DoubleSide, MathUtils, MeshPhongMaterial, MeshStandardMaterial } from 'three';
-import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
+import { BufferAttribute, BufferGeometry, Color, MathUtils, MeshPhongMaterial, MeshStandardMaterial } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { WIND_INSTANCE_GLSL, WIND_WAVE_GLSL } from '../wind/shader-chunks';
 import { bindWindUniforms, type WindUniforms } from '../wind/wind-field';
 
-const GRASS_SEGMENT_LENGTH = 1.1;
-
 export function prepareGrassGeometry(source: BufferGeometry): BufferGeometry {
-  const geometry = new TessellateModifier(GRASS_SEGMENT_LENGTH, 1).modify(source);
+  const geometry = source.clone();
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  if (!bounds) throw new Error('Grass geometry has no bounds.');
+  const height = Math.max(bounds.max.y - bounds.min.y, Number.EPSILON);
+  const centerX = (bounds.min.x + bounds.max.x) * 0.5;
+  const centerZ = (bounds.min.z + bounds.max.z) * 0.5;
+  geometry.translate(-centerX, -bounds.min.y, -centerZ);
+  geometry.scale(1 / height, 1 / height, 1 / height);
   geometry.computeBoundingBox();
   const positions = geometry.getAttribute('position');
-  const minimumY = geometry.boundingBox?.min.y ?? 0;
-  const height = Math.max((geometry.boundingBox?.max.y ?? 1) - minimumY, Number.EPSILON);
   const bendWeights = new Float32Array(positions.count);
   for (let index = 0; index < positions.count; index += 1) {
-    const relativeHeight = MathUtils.clamp((positions.getY(index) - minimumY) / height, 0, 1);
+    const relativeHeight = MathUtils.clamp(positions.getY(index), 0, 1);
     bendWeights[index] = relativeHeight * relativeHeight;
   }
   geometry.setAttribute('aBendWeight', new BufferAttribute(bendWeights, 1));
+  geometry.computeBoundingSphere();
   return geometry;
+}
+
+export function prepareMeadowGeometry(source: BufferGeometry): BufferGeometry {
+  const base = prepareGrassGeometry(source);
+  const left = base.clone().scale(0.88, 0.82, 0.88).rotateY(2.1).translate(2.35, 0, 1.15);
+  const right = base.clone().scale(1.04, 0.92, 0.96).rotateY(-0.82).translate(-2.15, 0, 1.7);
+  const parts = [base, left, right];
+  const meadow = mergeGeometries(parts, false);
+  parts.forEach((part) => part.dispose());
+  if (!meadow) throw new Error('Grass patch geometry could not be combined.');
+  meadow.computeBoundingBox();
+  meadow.computeBoundingSphere();
+  return meadow;
 }
 
 export function createGrassMaterial(source: MeshStandardMaterial, wind: WindUniforms): MeshPhongMaterial {
   const material = new MeshPhongMaterial({
     map: source.map,
-    color: '#dce7b8',
-    emissive: '#42673b',
-    emissiveIntensity: 0.15,
-    alphaTest: 0.45,
+    color: new Color('#d1d8ad'),
+    emissive: new Color('#283523'),
+    emissiveIntensity: 0.08,
+    alphaMap: source.alphaMap,
+    alphaTest: source.alphaTest,
+    transparent: source.transparent,
+    opacity: source.opacity,
     shininess: 1,
-    side: DoubleSide,
+    side: source.side,
     vertexColors: true,
   });
-  material.alphaToCoverage = true;
+  material.alphaToCoverage = source.alphaTest > 0;
   material.dithering = true;
   material.onBeforeCompile = (shader) => {
     bindWindUniforms(shader.uniforms, wind);
     shader.vertexShader = `${WIND_INSTANCE_GLSL}\nattribute float aRotation;\nattribute float aBendWeight;\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', grassBendShader);
   };
-  material.customProgramCacheKey = () => 'endless-wilds-grass-v5';
+  material.customProgramCacheKey = () => 'endless-wilds-grass-v6';
   return material;
 }
 

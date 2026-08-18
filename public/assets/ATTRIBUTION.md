@@ -10,10 +10,6 @@ Source: [dgreenheck/ez-tree](https://github.com/dgreenheck/ez-tree), revision
 
 The following files are copied from `src/app/public/` in the official repository:
 
-- `vegetation/grass.glb`
-- `vegetation/flower_white.glb`
-- `vegetation/flower_yellow.glb`
-- `vegetation/flower_blue.glb`
 - `rocks/rock1.glb`
 - `rocks/rock2.glb`
 - `rocks/rock3.glb`
@@ -28,6 +24,16 @@ license is included in `licenses/EZ-TREE-MIT.txt`. Texture provenance is documen
 Tree bark and leaf textures are consumed from the installed `@dgreenheck/ez-tree` package rather
 than duplicated here. Bark textures originate from ambientCG and are CC0; leaf textures are
 covered by the EZ-Tree project license.
+
+## Poly Pizza grass assets
+
+- `vegetation/grass-patch.glb`: ["Grass Patch" by Danni Bittman](https://poly.pizza/m/dz_TvM39dC7),
+  licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+- `vegetation/grass-tuft.glb`: ["Tuft of grass" by Poly by Google](https://poly.pizza/m/3tyh15Fbmsx),
+  licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+
+Both files are unmodified source downloads. Runtime normalisation, instancing, colour variation, and
+wind deformation happen in code without producing derivative asset files.
 
 The files under `terrain/palette-desktop/` and `terrain/palette-pico/` are currently derived from
 the three listed EZ-Tree terrain textures. `terrain/palette.json` records this placeholder status.
