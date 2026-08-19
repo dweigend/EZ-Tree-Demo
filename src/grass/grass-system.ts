@@ -1,6 +1,6 @@
 /**
- * Camera-bounded meadow patches and grass tufts with shared GPU wind.
- * A deterministic habitat mask forms small organic meadows instead of uniform ground coverage.
+ * Renders camera-bounded grass populations sampled from the shared zone catalog and world lattice.
+ * Placement is cached between refreshes; geometry, capacity, and GPU wind remain local responsibilities.
  */
 
 import {
@@ -8,7 +8,6 @@ import {
   BufferGeometry,
   Group,
   InstancedBufferAttribute,
-  MathUtils,
   Matrix4,
   MeshPhongMaterial,
   type MeshStandardMaterial,
@@ -18,8 +17,20 @@ import {
 } from 'three';
 import { VEGETATION } from '../config';
 import type { InstancedModelAsset } from '../assets/landscape-assets';
-import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
-import { getGroundCover, getWoodland } from '../ecology/landscape-ecology';
+import { hashCoordinates, unitRandom } from '../core/random';
+import { writeLandscapeZoneWeights, type LandscapeSurfaceSample } from '../ecology/landscape-ecology';
+import {
+  createPopulationLattice,
+  getPopulationCandidate,
+  getPopulationCellRange,
+  type PopulationLattice,
+} from '../ecology/landscape-population';
+import {
+  createLandscapeZoneWeights,
+  getMaximumPopulationDensityPerHectare,
+  getPopulationDensityPerHectare,
+  selectPopulationType,
+} from '../ecology/landscape-zones';
 import {
   createDynamicInstancedMesh,
   createDynamicScalarAttribute,
@@ -54,13 +65,6 @@ interface GrassInstance {
   readonly width: number;
   readonly height: number;
   readonly windStrength: number;
-  readonly hash: number;
-}
-
-interface MeadowCandidate {
-  readonly x: number;
-  readonly z: number;
-  readonly cameraPosition: Vector3;
   readonly hash: number;
 }
 
@@ -107,12 +111,19 @@ export class GrassSystem {
   private readonly scale = new Vector3();
   private readonly color = new Color();
   private readonly heightField: HeightField;
-  private readonly seed: number;
+  private readonly lattice: PopulationLattice;
+  private readonly zones = createLandscapeZoneWeights();
+  private readonly surface: LandscapeSurfaceSample = {
+    x: 0,
+    z: 0,
+    heightMeters: 0,
+    slopeDegrees: 0,
+  };
   private buildJob: GrassBuildJob | null = null;
 
   public constructor(dependencies: GrassSystemDependencies) {
     this.heightField = dependencies.heightField;
-    this.seed = dependencies.seed;
+    this.lattice = createPopulationLattice(getMaximumPopulationDensityPerHectare('grass'), dependencies.seed);
     this.patchBatch = this.createBatch(
       {
         geometry: prepareMeadowGeometry(dependencies.meadowPatch.geometry),
@@ -149,16 +160,20 @@ export class GrassSystem {
   }
 
   private startBuild(cameraPosition: Vector3): void {
-    const radiusInCells = Math.ceil(VEGETATION.grassRadius / VEGETATION.meadowSpacing);
-    const centerX = Math.round(cameraPosition.x / VEGETATION.meadowSpacing);
-    const centerZ = Math.round(cameraPosition.z / VEGETATION.meadowSpacing);
+    const radius = VEGETATION.grassRadius;
+    const range = getPopulationCellRange(this.lattice, {
+      minimumX: cameraPosition.x - radius,
+      maximumX: cameraPosition.x + radius,
+      minimumZ: cameraPosition.z - radius,
+      maximumZ: cameraPosition.z + radius,
+    });
     this.buildJob = {
       target: new Vector3(cameraPosition.x, 0, cameraPosition.z),
-      minX: centerX - radiusInCells,
-      maxX: centerX + radiusInCells,
-      currentX: centerX - radiusInCells,
-      currentZ: centerZ - radiusInCells,
-      maxZ: centerZ + radiusInCells,
+      minX: range.minimumX,
+      maxX: range.maximumX,
+      currentX: range.minimumX,
+      currentZ: range.minimumZ,
+      maxZ: range.maximumZ,
       patchCount: 0,
       tuftCount: 0,
     };
@@ -173,7 +188,7 @@ export class GrassSystem {
         this.completeBuild(job);
         return;
       }
-      this.tryAddMeadowCell(job);
+      this.tryAddGrassCell(job);
       job.currentX += 1;
       if (job.currentX <= job.maxX) continue;
       job.currentX = job.minX;
@@ -188,40 +203,33 @@ export class GrassSystem {
     this.finaliseBatch(this.tuftBatch, job.tuftCount);
   }
 
-  private tryAddMeadowCell(job: GrassBuildJob): void {
-    const hash = hashCoordinates(this.seed, job.currentX, job.currentZ);
-    const x = this.getJitteredCoordinate(job.currentX, hash, [3, 7]);
-    const z = this.getJitteredCoordinate(job.currentZ, hash, [11, 13]);
-    const strength = this.getAcceptedMeadowStrength({ x, z, cameraPosition: job.target, hash });
-    if (strength === null) return;
-    const height = this.heightField.getHeight(x, z);
-    if (job.patchCount < VEGETATION.meadowPatchCapacity) {
-      this.writePatch(job.patchCount, { x, z, y: height, hash, strength });
+  private tryAddGrassCell(job: GrassBuildJob): void {
+    const candidate = getPopulationCandidate(this.lattice, job.currentX, job.currentZ);
+    if (Math.hypot(candidate.x - job.target.x, candidate.z - job.target.z) > VEGETATION.grassRadius) return;
+    const heightMeters = this.heightField.getHeight(candidate.x, candidate.z);
+    this.surface.x = candidate.x;
+    this.surface.z = candidate.z;
+    this.surface.heightMeters = heightMeters;
+    this.surface.slopeDegrees = this.heightField.getSlopeDegrees(candidate.x, candidate.z);
+    writeLandscapeZoneWeights(this.heightField, this.surface, this.zones);
+    const density = getPopulationDensityPerHectare(this.zones, 'grass');
+    if (candidate.densityRankPerHectare >= density) return;
+    const kind = selectPopulationType(this.zones, 'grass', unitRandom(hashCoordinates(candidate.hash, 19, 23)));
+    const placement = {
+      x: candidate.x,
+      y: heightMeters,
+      z: candidate.z,
+      hash: candidate.hash,
+      strength: density / this.lattice.maximumDensityPerHectare,
+    } satisfies MeadowPlacement;
+    if (kind === 'meadowPatch' && job.patchCount < VEGETATION.meadowPatchCapacity) {
+      this.writePatch(job.patchCount, placement);
       job.patchCount += 1;
     }
-    if (job.tuftCount >= VEGETATION.grassTuftCapacity) return;
-    if (unitRandom(hashCoordinates(hash, 73, 79)) > 0.38 + strength * 0.48) return;
-    if (this.writeNearbyTuft(job.tuftCount, { x, z, y: height, hash, strength })) job.tuftCount += 1;
-  }
-
-  private getAcceptedMeadowStrength(candidate: MeadowCandidate): number | null {
-    const { x, z, cameraPosition, hash } = candidate;
-    const distance = Math.hypot(x - cameraPosition.x, z - cameraPosition.z);
-    if (distance > VEGETATION.grassRadius) return null;
-    const height = this.heightField.getHeight(x, z);
-    const slope = this.heightField.getSlope(x, z);
-    if (height > 185 || height < -34 || slope > 0.68) return null;
-    const distanceRatio = distance / VEGETATION.grassRadius;
-    const distanceKeep = distanceRatio < 0.72 ? 1 : Math.max(0.12, 1 - (distanceRatio - 0.72) / 0.28);
-    const cover = getGroundCover(this.heightField, x, z, height);
-    const island = this.heightField.getNoise01((x - 130) * 0.009, (z + 270) * 0.009, 2);
-    const edge = this.heightField.getNoise01((x + 310) * 0.021, (z - 190) * 0.021, 1);
-    const woodland = getWoodland(this.heightField, x, z);
-    const openGround = 1 - MathUtils.smoothstep(woodland, 0.64, 0.88);
-    const flatness = 1 - MathUtils.smoothstep(slope, 0.22, 0.68);
-    const organicMask = cover * 0.42 + island * 0.43 + edge * 0.15;
-    const strength = MathUtils.smoothstep(organicMask, 0.5, 0.72) * flatness * (0.62 + openGround * 0.38);
-    return unitRandom(hashCoordinates(hash, 17, 19)) < strength * distanceKeep ? strength : null;
+    if (kind === 'grassTuft' && job.tuftCount < VEGETATION.grassTuftCapacity) {
+      this.writeTuft(job.tuftCount, placement);
+      job.tuftCount += 1;
+    }
   }
 
   private writePatch(index: number, placement: MeadowPlacement): void {
@@ -236,25 +244,18 @@ export class GrassSystem {
     });
   }
 
-  private writeNearbyTuft(index: number, placement: MeadowPlacement): boolean {
-    const angle = unitRandom(hashCoordinates(placement.hash, 83, 89)) * Math.PI * 2;
-    const distance = 2.8 + unitRandom(hashCoordinates(placement.hash, 97, 101)) * 4.8;
-    const tuftX = placement.x + Math.cos(angle) * distance;
-    const tuftZ = placement.z + Math.sin(angle) * distance;
-    if (this.heightField.getSlope(tuftX, tuftZ) > 0.72) return false;
-    const tuftHeight = this.heightField.getHeight(tuftX, tuftZ);
+  private writeTuft(index: number, placement: MeadowPlacement): void {
     const width = 1.5 + unitRandom(hashCoordinates(placement.hash, 103, 107)) * 1.5;
     const height = 1.15 + unitRandom(hashCoordinates(placement.hash, 109, 113)) * 1.55;
     this.writeInstance(this.tuftBatch, index, {
-      x: tuftX,
-      z: tuftZ,
-      y: tuftHeight - 0.03,
+      x: placement.x,
+      z: placement.z,
+      y: placement.y - 0.03,
       hash: placement.hash,
       width,
       height,
       windStrength: 0.82,
     });
-    return true;
   }
 
   private writeInstance(batch: GrassBatch, index: number, instance: GrassInstance): void {
@@ -290,11 +291,6 @@ export class GrassSystem {
 
   private finaliseBatch(batch: GrassBatch, count: number): void {
     finaliseInstancedMesh(batch.mesh, count, batch.rotation, batch.phase, batch.strength);
-  }
-
-  private getJitteredCoordinate(cell: number, hash: number, salts: readonly [number, number]): number {
-    const jitter = signedRandom(hashCoordinates(hash, salts[0], salts[1])) * VEGETATION.grassJitterRatio;
-    return (cell + jitter) * VEGETATION.meadowSpacing;
   }
 
   private areBatchesFull(job: GrassBuildJob): boolean {

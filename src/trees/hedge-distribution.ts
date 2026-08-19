@@ -3,15 +3,18 @@
  * It owns placement only; geometry, LODs, and GPU capacity remain TreeSystem responsibilities.
  */
 
-import { TERRAIN, VEGETATION } from '../config';
+import { VEGETATION } from '../config';
 import type { HeightField } from '../core/height-field';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
+import { SQUARE_METERS_PER_HECTARE } from '../ecology/landscape-population';
 import {
   createLandscapeZoneWeights,
-  getTrailEnvelope,
-  writeLandscapeZoneWeights,
-  type LandscapeSurfaceSample,
-} from '../ecology/landscape-ecology';
+  getHedgeRowMetersPerHectare,
+  getHedgeShrubSpacingMeters,
+  type LandscapeZoneWeights,
+} from '../ecology/landscape-zones';
+import { getTrailEnvelope, writeLandscapeZoneWeights, type LandscapeSurfaceSample } from '../ecology/landscape-ecology';
+import { getChunkBounds } from '../world/chunk-coordinates';
 
 export interface HedgePlacement {
   readonly rowId: string;
@@ -39,13 +42,30 @@ interface HedgeRow {
   readonly pointCount: number;
 }
 
-const MACRO_CELL_SIZE = 160;
-const ROW_REACH = 110;
+interface HedgePoint {
+  readonly index: number;
+  readonly progress: number;
+  readonly x: number;
+  readonly z: number;
+}
+
+const MACRO_CELL_SIZE_METERS = 160;
+const HECTARES_PER_MACRO_CELL = MACRO_CELL_SIZE_METERS ** 2 / SQUARE_METERS_PER_HECTARE;
+const MINIMUM_ROW_LENGTH_METERS = 90;
+const ROW_LENGTH_VARIATION_METERS = 85;
+const ROW_REACH_METERS = MINIMUM_ROW_LENGTH_METERS + ROW_LENGTH_VARIATION_METERS;
+const ROW_CENTER_JITTER_METERS = 24;
+const MAXIMUM_HEDGE_SLOPE_DEGREES = 20;
 
 export class HedgeDistribution {
   private readonly cache = new Map<string, HedgePlacement[]>();
   private readonly zones = createLandscapeZoneWeights();
-  private readonly surface: LandscapeSurfaceSample = { x: 0, z: 0, height: 0, slope: 0 };
+  private readonly surface: LandscapeSurfaceSample = {
+    x: 0,
+    z: 0,
+    heightMeters: 0,
+    slopeDegrees: 0,
+  };
 
   public constructor(
     private readonly heightField: HeightField,
@@ -65,10 +85,10 @@ export class HedgeDistribution {
   private createChunkPlacements(chunkX: number, chunkZ: number): HedgePlacement[] {
     const bounds = getChunkBounds(chunkX, chunkZ);
     const placements: HedgePlacement[] = [];
-    const minimumMacroX = Math.floor((bounds.minimumX - ROW_REACH) / MACRO_CELL_SIZE);
-    const maximumMacroX = Math.floor((bounds.maximumX + ROW_REACH) / MACRO_CELL_SIZE);
-    const minimumMacroZ = Math.floor((bounds.minimumZ - ROW_REACH) / MACRO_CELL_SIZE);
-    const maximumMacroZ = Math.floor((bounds.maximumZ + ROW_REACH) / MACRO_CELL_SIZE);
+    const minimumMacroX = Math.floor((bounds.minimumX - ROW_REACH_METERS) / MACRO_CELL_SIZE_METERS);
+    const maximumMacroX = Math.floor((bounds.maximumX + ROW_REACH_METERS) / MACRO_CELL_SIZE_METERS);
+    const minimumMacroZ = Math.floor((bounds.minimumZ - ROW_REACH_METERS) / MACRO_CELL_SIZE_METERS);
+    const maximumMacroZ = Math.floor((bounds.maximumZ + ROW_REACH_METERS) / MACRO_CELL_SIZE_METERS);
     for (let macroZ = minimumMacroZ; macroZ <= maximumMacroZ; macroZ += 1) {
       for (let macroX = minimumMacroX; macroX <= maximumMacroX; macroX += 1) {
         const row = this.createRow(macroX, macroZ);
@@ -80,16 +100,24 @@ export class HedgeDistribution {
 
   private createRow(macroX: number, macroZ: number): HedgeRow | null {
     const hash = hashCoordinates(this.seed, macroX, macroZ);
-    if (unitRandom(hashCoordinates(hash, 3, 5)) > 0.58) return null;
+    const centerX =
+      (macroX + 0.5) * MACRO_CELL_SIZE_METERS + signedRandom(hashCoordinates(hash, 7, 11)) * ROW_CENTER_JITTER_METERS;
+    const centerZ =
+      (macroZ + 0.5) * MACRO_CELL_SIZE_METERS + signedRandom(hashCoordinates(hash, 13, 17)) * ROW_CENTER_JITTER_METERS;
+    const zones = this.sampleZones(centerX, centerZ);
+    const length = MINIMUM_ROW_LENGTH_METERS + unitRandom(hashCoordinates(hash, 29, 31)) * ROW_LENGTH_VARIATION_METERS;
+    const targetMeters = getHedgeRowMetersPerHectare(zones) * HECTARES_PER_MACRO_CELL;
+    if (unitRandom(hashCoordinates(hash, 3, 5)) * length >= targetMeters) return null;
+    const shrubSpacing = getHedgeShrubSpacingMeters(zones);
     return {
       id: `${macroX}:${macroZ}`,
       hash,
-      centerX: (macroX + 0.5) * MACRO_CELL_SIZE + signedRandom(hashCoordinates(hash, 7, 11)) * 24,
-      centerZ: (macroZ + 0.5) * MACRO_CELL_SIZE + signedRandom(hashCoordinates(hash, 13, 17)) * 24,
+      centerX,
+      centerZ,
       angle: unitRandom(hashCoordinates(hash, 19, 23)) * Math.PI * 2,
-      length: 90 + unitRandom(hashCoordinates(hash, 29, 31)) * 85,
+      length,
       bend: signedRandom(hashCoordinates(hash, 37, 41)) * 13,
-      pointCount: 28 + (hashCoordinates(hash, 43, 47) % 20),
+      pointCount: Math.max(2, Math.round(length / shrubSpacing) + 1),
     };
   }
 
@@ -110,31 +138,22 @@ export class HedgeDistribution {
       const x = row.centerX + forwardX * along + sideX * across;
       const z = row.centerZ + forwardZ * along + sideZ * across;
       if (!isInsideChunk(x, z, bounds)) continue;
-      const placement = this.createPlacement(row, pointIndex, progress, x, z);
+      const placement = this.createPlacement(row, { index: pointIndex, progress, x, z });
       if (placement) target.push(placement);
     }
   }
 
-  private createPlacement(
-    row: HedgeRow,
-    pointIndex: number,
-    progress: number,
-    x: number,
-    z: number,
-  ): HedgePlacement | null {
-    const y = this.heightField.getHeight(x, z);
-    const slope = this.heightField.getSlope(x, z);
-    this.updateSurface(x, z, y, slope);
-    writeLandscapeZoneWeights(this.heightField, this.surface, this.zones);
+  private createPlacement(row: HedgeRow, point: HedgePoint): HedgePlacement | null {
+    this.sampleZones(point.x, point.z);
     if (!this.acceptsSite()) return null;
-    const hash = hashCoordinates(row.hash, pointIndex, 0x713d);
-    const curveRotation = Math.cos(progress * Math.PI) * row.bend * 0.011;
+    const hash = hashCoordinates(row.hash, point.index, 0x713d);
+    const curveRotation = Math.cos(point.progress * Math.PI) * row.bend * 0.011;
     return {
       rowId: row.id,
-      pointIndex,
-      x,
-      y,
-      z,
+      pointIndex: point.index,
+      x: point.x,
+      y: this.surface.heightMeters,
+      z: point.z,
       rotation: row.angle + curveRotation + signedRandom(hashCoordinates(hash, 3, 5)) * 0.08,
       scale: 0.82 + unitRandom(hashCoordinates(hash, 7, 11)) * 0.36,
       widthScale: 1.05 + unitRandom(hashCoordinates(hash, 13, 17)) * 0.3,
@@ -145,31 +164,19 @@ export class HedgeDistribution {
     };
   }
 
-  private updateSurface(x: number, z: number, height: number, slope: number): void {
+  private sampleZones(x: number, z: number): LandscapeZoneWeights {
     this.surface.x = x;
     this.surface.z = z;
-    this.surface.height = height;
-    this.surface.slope = slope;
+    this.surface.heightMeters = this.heightField.getHeight(x, z);
+    this.surface.slopeDegrees = this.heightField.getSlopeDegrees(x, z);
+    return writeLandscapeZoneWeights(this.heightField, this.surface, this.zones);
   }
 
   private acceptsSite(): boolean {
-    if (this.surface.slope > 0.34 || this.zones.rockyRidge > 0.42) return false;
+    if (this.surface.slopeDegrees > MAXIMUM_HEDGE_SLOPE_DEGREES) return false;
     if (getTrailEnvelope(this.surface) > 0.08) return false;
-    const forest = this.zones.dryBroadleaf + this.zones.moistBroadleaf + this.zones.coniferHighland;
-    const meadowEdge = this.zones.meadow * forest * 4;
-    const moistureEdge = this.zones.wetLowland * (this.zones.meadow + forest) * 2.5;
-    return meadowEdge + moistureEdge > 0.055;
+    return getHedgeRowMetersPerHectare(this.zones) > 0;
   }
-}
-
-function getChunkBounds(chunkX: number, chunkZ: number) {
-  const halfSize = TERRAIN.chunkSize / 2;
-  return {
-    minimumX: chunkX * TERRAIN.chunkSize - halfSize,
-    maximumX: chunkX * TERRAIN.chunkSize + halfSize,
-    minimumZ: chunkZ * TERRAIN.chunkSize - halfSize,
-    maximumZ: chunkZ * TERRAIN.chunkSize + halfSize,
-  } as const;
 }
 
 function isInsideChunk(x: number, z: number, bounds: ReturnType<typeof getChunkBounds>): boolean {

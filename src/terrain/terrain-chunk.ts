@@ -7,6 +7,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   DynamicDrawUsage,
+  MathUtils,
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
@@ -29,7 +30,12 @@ export class TerrainChunk {
   private readonly materialWeightsB: BufferAttribute;
   private readonly normal = new Vector3();
   private readonly weights: LandscapeMaterialWeights = { first: new Vector4(), second: new Vector4() };
-  private readonly surface: LandscapeSurfaceSample = { x: 0, z: 0, height: 0, slope: 0 };
+  private readonly surface: LandscapeSurfaceSample = {
+    x: 0,
+    z: 0,
+    heightMeters: 0,
+    slopeDegrees: 0,
+  };
 
   public constructor(
     private readonly heightField: HeightField,
@@ -82,8 +88,8 @@ export class TerrainChunk {
     this.normals.setXYZ(index, this.normal.x, this.normal.y, this.normal.z);
     this.surface.x = worldX;
     this.surface.z = worldZ;
-    this.surface.height = height;
-    this.surface.slope = 1 - this.normal.y;
+    this.surface.heightMeters = height;
+    this.surface.slopeDegrees = MathUtils.radToDeg(Math.acos(MathUtils.clamp(this.normal.y, -1, 1)));
     writeLandscapeMaterialWeights(this.heightField, this.surface, this.weights);
     this.materialWeightsA.setXYZW(
       index,

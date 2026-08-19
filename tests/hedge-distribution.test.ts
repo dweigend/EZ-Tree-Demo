@@ -20,9 +20,16 @@ describe('hedge distribution', () => {
     expect(first.length).toBeWithin(1, 420);
     for (const placement of first) {
       expect(isOwnedByChunk(placement, 0, 0)).toBeTrue();
-      const slope = heightField.getSlope(placement.x, placement.z);
-      expect(slope).toBeLessThanOrEqual(0.34);
-      expect(getTrailEnvelope({ ...placement, height: placement.y, slope })).toBeLessThanOrEqual(0.08);
+      const slopeDegrees = heightField.getSlopeDegrees(placement.x, placement.z);
+      expect(slopeDegrees).toBeLessThanOrEqual(20);
+      expect(
+        getTrailEnvelope({
+          x: placement.x,
+          z: placement.z,
+          heightMeters: placement.y,
+          slopeDegrees,
+        }),
+      ).toBeLessThanOrEqual(0.08);
     }
   });
 
@@ -43,8 +50,9 @@ describe('hedge distribution', () => {
     const organicRow = [...rows.values()].find((placements) => {
       if (placements.length < 8) return false;
       const ordered = [...placements].sort((left, right) => left.pointIndex - right.pointIndex);
-      const rotationRange = Math.max(...ordered.map((placement) => placement.rotation))
-        - Math.min(...ordered.map((placement) => placement.rotation));
+      const rotationRange =
+        Math.max(...ordered.map((placement) => placement.rotation)) -
+        Math.min(...ordered.map((placement) => placement.rotation));
       const hasGap = ordered.some((placement, index) => {
         const next = ordered[index + 1];
         return next ? next.pointIndex - placement.pointIndex > 1 : false;

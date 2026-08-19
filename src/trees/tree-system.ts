@@ -11,7 +11,7 @@ import {
   finaliseInstancedMesh,
 } from '../rendering/update-instanced-attributes';
 import { ChunkPrefetchQueue, getChunkIndex, getChunkViewWindow, type HorizontalDirection } from '../world/chunk-coordinates';
-import { acceptsTreeDensity, type ForestDistribution, type TreePlacement } from './forest-distribution';
+import type { ForestDistribution, TreePlacement } from './forest-distribution';
 import type { HedgeDistribution, HedgePlacement } from './hedge-distribution';
 import type { TreeLod, TreeVariant } from './tree-factory';
 import type { GeneratedVariantUpdate } from './tree-variant-generator';
@@ -160,7 +160,6 @@ export class TreeSystem {
   }
 
   private addTreePlacement(placement: TreePlacement, renderWindow: TreeRenderWindow): void {
-    if (!acceptsTreeDensity(placement.densityRank, VEGETATION.treeDensity)) return;
     const distance = getDistance(placement, renderWindow.position);
     if (!this.isInRenderWindow(placement, renderWindow, distance)) return;
     const variant = this.variants[placement.variant];

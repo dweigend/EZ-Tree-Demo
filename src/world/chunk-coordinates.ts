@@ -16,7 +16,24 @@ export interface HorizontalDirection {
   readonly z: number;
 }
 
+export interface ChunkBounds {
+  readonly minimumX: number;
+  readonly maximumX: number;
+  readonly minimumZ: number;
+  readonly maximumZ: number;
+}
+
 export const getChunkIndex = (worldCoordinate: number): number => Math.floor((worldCoordinate + TERRAIN.chunkSize / 2) / TERRAIN.chunkSize);
+
+export function getChunkBounds(chunkX: number, chunkZ: number): ChunkBounds {
+  const halfSize = TERRAIN.chunkSize / 2;
+  return {
+    minimumX: chunkX * TERRAIN.chunkSize - halfSize,
+    maximumX: chunkX * TERRAIN.chunkSize + halfSize,
+    minimumZ: chunkZ * TERRAIN.chunkSize - halfSize,
+    maximumZ: chunkZ * TERRAIN.chunkSize + halfSize,
+  };
+}
 
 export class ChunkPrefetchQueue {
   private centerX = Number.NaN;

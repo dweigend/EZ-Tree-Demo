@@ -8,7 +8,7 @@ import { MathUtils, Vector3 } from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { hashString } from './random';
 
-const SURFACE_SAMPLE_DISTANCE = 3;
+const SURFACE_SAMPLE_DISTANCE = 2.5;
 
 export class HeightField {
   private readonly noise = new ImprovedNoise();
@@ -40,9 +40,11 @@ export class HeightField {
     return macroLandform + continental * 36 * this.relief + mountainMask * ridges ** 2.25 * 198 + hills * (1 - plains * 0.72) - valley;
   }
 
-  public getSlope(x: number, z: number): number {
+  /** Returns the terrain incline in degrees so every ecology consumer uses the same physical unit. */
+  public getSlopeDegrees(x: number, z: number): number {
     const gradient = this.getGradient(x, z, this.gradient);
-    return Math.hypot(gradient.x, gradient.z) / gradient.y;
+    const riseOverRun = Math.hypot(gradient.x, gradient.z) / gradient.y;
+    return MathUtils.radToDeg(Math.atan(riseOverRun));
   }
 
   public getNormal(x: number, z: number, target: Vector3, step = SURFACE_SAMPLE_DISTANCE): Vector3 {

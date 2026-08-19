@@ -6,11 +6,11 @@ import { expect, test } from '@playwright/test';
 
 test('static landscape keeps high local density inside the desktop geometry budget', async ({ page }) => {
   await page.goto('/?profile=desktop');
-  await page.waitForFunction(() => (window.__LANDSCAPE_DIAGNOSTICS__?.grassPatches ?? 0) >= 55);
+  await page.waitForFunction(() => (window.__LANDSCAPE_DIAGNOSTICS__?.grassPatches ?? 0) >= 30);
   const diagnostics = await page.evaluate(() => window.__LANDSCAPE_DIAGNOSTICS__);
-  expect(diagnostics?.trees).toBeGreaterThan(620);
-  expect(diagnostics?.grassPatches).toBeGreaterThanOrEqual(55);
-  expect(diagnostics?.grassTufts).toBeGreaterThan(30);
+  expect(diagnostics?.trees).toBeGreaterThan(400);
+  expect(diagnostics?.grassPatches).toBeGreaterThanOrEqual(30);
+  expect(diagnostics?.grassTufts).toBeGreaterThan(80);
   expect(diagnostics?.rocks).toBeGreaterThan(650);
   expect(diagnostics?.drawCalls).toBeLessThanOrEqual(40);
   expect(diagnostics?.triangles).toBeLessThanOrEqual(2_800_000);
@@ -46,12 +46,12 @@ test('desktop flight stays inside the landscape render budget', async ({ page },
 
 test('PICO profile keeps non-XR render work below headset ceilings', async ({ page }) => {
   await page.goto('/?profile=pico90');
-  await page.waitForFunction(() => (window.__LANDSCAPE_DIAGNOSTICS__?.grassPatches ?? 0) >= 15);
+  await page.waitForFunction(() => (window.__LANDSCAPE_DIAGNOSTICS__?.grassPatches ?? 0) >= 12);
   const snapshot = await page.evaluate(() => window.__LANDSCAPE_BENCHMARK__?.snapshot());
   expect(snapshot?.profile).toBe('pico90');
-  expect(snapshot?.diagnostics.trees).toBeGreaterThan(200);
-  expect(snapshot?.diagnostics.grassPatches).toBeGreaterThanOrEqual(15);
-  expect(snapshot?.diagnostics.grassTufts).toBeGreaterThan(7);
+  expect(snapshot?.diagnostics.trees).toBeGreaterThan(160);
+  expect(snapshot?.diagnostics.grassPatches).toBeGreaterThanOrEqual(12);
+  expect(snapshot?.diagnostics.grassTufts).toBeGreaterThan(25);
   expect(snapshot?.diagnostics.rocks).toBeGreaterThan(175);
   expect(snapshot?.diagnostics.drawCalls).toBeLessThanOrEqual(32);
   expect(snapshot?.diagnostics.triangles).toBeLessThanOrEqual(800_000);

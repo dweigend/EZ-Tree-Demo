@@ -14,7 +14,7 @@ interface QualityProfile {
   readonly terrainRadius: number;
   readonly terrainSegments: number;
   readonly treeBatchCapacity: number;
-  readonly treeDensity: number;
+  readonly maximumTreeDensityPerHectare: number;
   readonly treeLod: readonly [number, number, number];
   readonly grassRadius: number;
   readonly meadowPatchCapacity: number;
@@ -36,7 +36,7 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
     terrainRadius: 3,
     terrainSegments: 32,
     treeBatchCapacity: 700,
-    treeDensity: 1,
+    maximumTreeDensityPerHectare: 24,
     treeLod: [85, 300, 720],
     grassRadius: 200,
     meadowPatchCapacity: 60,
@@ -55,7 +55,7 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
     terrainRadius: 2,
     terrainSegments: 24,
     treeBatchCapacity: 480,
-    treeDensity: 0.85,
+    maximumTreeDensityPerHectare: 20,
     treeLod: [45, 180, 400],
     grassRadius: 120,
     meadowPatchCapacity: 16,
@@ -92,22 +92,17 @@ export const TERRAIN = {
 } as const;
 
 export const VEGETATION = {
-  jitterRatio: 0.42,
-  grassJitterRatio: 0.9,
   placementCacheSize: 96,
   treeBatchCapacity: QUALITY_PROFILE.treeBatchCapacity,
-  treeDensity: QUALITY_PROFILE.treeDensity,
-  treeSpacing: 14,
+  maximumTreeDensityPerHectare: QUALITY_PROFILE.maximumTreeDensityPerHectare,
   nearDistance: QUALITY_PROFILE.treeLod[0],
   middleDistance: QUALITY_PROFILE.treeLod[1],
   farDistance: QUALITY_PROFILE.treeLod[2],
   grassRadius: QUALITY_PROFILE.grassRadius,
-  meadowSpacing: 11.5,
   meadowPatchCapacity: QUALITY_PROFILE.meadowPatchCapacity,
   grassTuftCapacity: QUALITY_PROFILE.grassTuftCapacity,
   grassRefreshDistance: QUALITY_PROFILE.name === 'pico90' ? 55 : 70,
   rockBatchCapacity: QUALITY_PROFILE.name === 'pico90' ? 420 : 600,
-  rockSpacing: 16,
   rockDistance: QUALITY_PROFILE.rockDistance,
   hedgeBatchCapacity: QUALITY_PROFILE.name === 'pico90' ? 180 : 420,
   hedgeNearDistance: QUALITY_PROFILE.name === 'pico90' ? 35 : 55,

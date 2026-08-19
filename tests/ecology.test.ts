@@ -7,12 +7,12 @@ import { Vector4 } from 'three';
 import { WORLD_SEED } from '../src/config';
 import { HeightField } from '../src/core/height-field';
 import {
-  createLandscapeZoneWeights,
   writeLandscapeZoneWeights,
   writeLandscapeMaterialWeights,
   type LandscapeMaterialWeights,
   type LandscapeSurfaceSample,
 } from '../src/ecology/landscape-ecology';
+import { createLandscapeZoneWeights } from '../src/ecology/landscape-zones';
 
 const heightField = new HeightField(WORLD_SEED, 1);
 
@@ -71,6 +71,10 @@ function toArray(weights: LandscapeMaterialWeights): number[] {
 }
 
 function createSurface(x: number, z: number): LandscapeSurfaceSample {
-  const height = heightField.getHeight(x, z);
-  return { x, z, height, slope: heightField.getSlope(x, z) };
+  return {
+    x,
+    z,
+    heightMeters: heightField.getHeight(x, z),
+    slopeDegrees: heightField.getSlopeDegrees(x, z),
+  };
 }
