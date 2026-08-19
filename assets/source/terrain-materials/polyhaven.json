@@ -63,6 +63,18 @@
       }
     },
     {
+      "slot": "pineForest",
+      "asset": "forrest_ground_03",
+      "name": "Forest Ground 03",
+      "author": "Rob Tuytel",
+      "tileMeters": 9,
+      "maps": {
+        "basecolor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_03/forrest_ground_03_diff_1k.jpg",
+        "normal": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_03/forrest_ground_03_nor_gl_1k.jpg",
+        "roughness": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_03/forrest_ground_03_rough_1k.jpg"
+      }
+    },
+    {
       "slot": "rock",
       "asset": "rocky_terrain_03",
       "name": "Rocky Terrain 03",

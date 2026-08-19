@@ -1,5 +1,5 @@
 /**
- * Builds fixed 3x3 desktop and PICO atlases from the seven local Poly Haven materials.
+ * Builds fixed 3x3 desktop and PICO atlases from the eight local Poly Haven materials.
  * Source downloads stay reproducible through the manifest; runtime receives albedo plus packed normal/roughness atlases.
  */
 
@@ -142,7 +142,7 @@ async function writePaletteMetadata(source: MaterialManifest): Promise<void> {
 }
 
 async function validateMaps(materials: readonly MaterialSource[]): Promise<void> {
-  if (materials.length !== 7) throw new Error('The terrain palette requires exactly seven Poly Haven materials.');
+  if (materials.length !== 8) throw new Error('The terrain palette requires exactly eight Poly Haven materials.');
   for (const material of materials) {
     for (const mapName of ['basecolor.jpg', 'normal.jpg', 'roughness.jpg']) {
       await runMagick(['identify', '-quiet', path.join(sourceRoot, material.asset, mapName)]);

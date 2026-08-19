@@ -3,12 +3,17 @@
  * No tree generation occurs after construction; runtime trees are GPU instances only.
  */
 
-import { Tree, TreePreset } from '@dgreenheck/ez-tree';
+import { Tree } from '@dgreenheck/ez-tree';
 import { BufferAttribute, BufferGeometry, CylinderGeometry, Matrix4, MeshPhongMaterial } from 'three';
 import { hashCoordinates } from '../core/random';
 import type { WindUniforms } from '../wind/wind-field';
 import { createBranchMaterial, createLeafMaterial } from './tree-materials';
-import { TREE_TEMPLATES, type TreeSpecies, type TreeTemplate } from './tree-templates';
+import {
+  createVariedTreePreset,
+  TREE_TEMPLATES,
+  type TreeSpecies,
+  type TreeTemplate,
+} from './tree-templates';
 
 export type TreeLod = 'near' | 'middle' | 'far';
 
@@ -30,8 +35,7 @@ export function createTreeVariants(wind: WindUniforms, seed: number): TreeVarian
 }
 
 function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms): TreeVariant {
-  const options = structuredClone(TreePreset[template.preset]);
-  options.seed = seed;
+  const options = createVariedTreePreset(template, seed);
   // EZ-Tree's runtime accepts preset data, but 1.1.0 types require its mutable TreeOptions class.
   const tree = new Tree(options as Tree['options']);
   tree.generate();

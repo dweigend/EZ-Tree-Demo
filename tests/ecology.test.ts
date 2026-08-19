@@ -3,10 +3,12 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { Vector3, Vector4 } from 'three';
+import { Vector4 } from 'three';
 import { WORLD_SEED } from '../src/config';
 import { HeightField } from '../src/core/height-field';
 import {
+  createLandscapeZoneWeights,
+  writeLandscapeZoneWeights,
   writeLandscapeMaterialWeights,
   type LandscapeMaterialWeights,
   type LandscapeSurfaceSample,
@@ -32,7 +34,7 @@ describe('landscape material weights', () => {
   });
 
   test('generates dominant examples for every terrain zone', () => {
-    const maxima = Array<number>(7).fill(0);
+    const maxima = Array<number>(8).fill(0);
     for (let z = -2_000; z <= 2_000; z += 80) {
       for (let x = -2_000; x <= 2_000; x += 80) {
         const weights = toArray(writeLandscapeMaterialWeights(heightField, createSurface(x, z), createWeights()));
@@ -43,10 +45,25 @@ describe('landscape material weights', () => {
     }
     maxima.forEach((maximum) => expect(maximum).toBeGreaterThan(0.16));
   });
+
+  test('generates normalized examples for all six continuous ecology zones', () => {
+    const maxima = Array<number>(6).fill(0);
+    for (let z = -2_000; z <= 2_000; z += 80) {
+      for (let x = -2_000; x <= 2_000; x += 80) {
+        const zone = writeLandscapeZoneWeights(heightField, createSurface(x, z), createLandscapeZoneWeights());
+        const values = Object.values(zone);
+        expect(values.reduce((sum, value) => sum + value, 0)).toBeCloseTo(1, 6);
+        values.forEach((weight, index) => {
+          maxima[index] = Math.max(maxima[index]!, weight);
+        });
+      }
+    }
+    maxima.forEach((maximum) => expect(maximum).toBeGreaterThan(0.12));
+  });
 });
 
 function createWeights(): LandscapeMaterialWeights {
-  return { first: new Vector4(), second: new Vector3() };
+  return { first: new Vector4(), second: new Vector4() };
 }
 
 function toArray(weights: LandscapeMaterialWeights): number[] {

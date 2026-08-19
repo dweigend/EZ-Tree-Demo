@@ -30,7 +30,7 @@ export interface GroundTextureAssets {
   readonly atlasSize: number;
 }
 
-export type TerrainLayerValues = readonly [number, number, number, number, number, number, number];
+export type TerrainLayerValues = readonly [number, number, number, number, number, number, number, number];
 
 export interface LandscapeAssets {
   readonly ground: GroundTextureAssets;
@@ -136,7 +136,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isTerrainLayerValues(value: unknown): value is TerrainLayerValues {
-  if (!Array.isArray(value) || value.length !== 7) return false;
+  if (!Array.isArray(value) || value.length !== 8) return false;
   return value.every((entry) => typeof entry === 'number');
 }
 

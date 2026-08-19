@@ -31,6 +31,12 @@
       "author": "Rob Tuytel"
     },
     {
+      "slot": "pineForest",
+      "source": "forrest_ground_03",
+      "name": "Forest Ground 03",
+      "author": "Rob Tuytel"
+    },
+    {
       "slot": "rock",
       "source": "rocky_terrain_03",
       "name": "Rocky Terrain 03",
@@ -49,6 +55,7 @@
     8,
     10,
     12,
+    9,
     42,
     8
   ],

@@ -28,7 +28,7 @@ export class TerrainChunk {
   private readonly materialWeightsA: BufferAttribute;
   private readonly materialWeightsB: BufferAttribute;
   private readonly normal = new Vector3();
-  private readonly weights: LandscapeMaterialWeights = { first: new Vector4(), second: new Vector3() };
+  private readonly weights: LandscapeMaterialWeights = { first: new Vector4(), second: new Vector4() };
   private readonly surface: LandscapeSurfaceSample = { x: 0, z: 0, height: 0, slope: 0 };
 
   public constructor(
@@ -44,7 +44,7 @@ export class TerrainChunk {
     this.materialWeightsA = new BufferAttribute(new Float32Array(this.positions.count * 4), 4).setUsage(
       DynamicDrawUsage,
     );
-    this.materialWeightsB = new BufferAttribute(new Float32Array(this.positions.count * 3), 3).setUsage(
+    this.materialWeightsB = new BufferAttribute(new Float32Array(this.positions.count * 4), 4).setUsage(
       DynamicDrawUsage,
     );
     geometry.setAttribute('aMaterialWeightsA', this.materialWeightsA);
@@ -92,6 +92,12 @@ export class TerrainChunk {
       this.weights.first.z,
       this.weights.first.w,
     );
-    this.materialWeightsB.setXYZ(index, this.weights.second.x, this.weights.second.y, this.weights.second.z);
+    this.materialWeightsB.setXYZW(
+      index,
+      this.weights.second.x,
+      this.weights.second.y,
+      this.weights.second.z,
+      this.weights.second.w,
+    );
   }
 }

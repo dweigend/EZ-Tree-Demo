@@ -32,6 +32,7 @@ const LODS: readonly TreeLod[] = ['near', 'middle', 'far'];
 const SHARED_DISTANCE_VARIANT_INDEX = 1;
 const VIEW_CONE_COSINE = 0;
 const LEAF_COLORS: Readonly<Record<TreeSpecies, readonly [Color, Color]>> = {
+  ash: [new Color('#b9d39f'), new Color('#e4e7a8')],
   aspen: [new Color('#c9dcaa'), new Color('#eff0b4')],
   oak: [new Color('#bed09b'), new Color('#e1d39d')],
   pine: [new Color('#b2c8a6'), new Color('#d8d6a2')],

@@ -6,7 +6,14 @@
 import { MathUtils } from 'three';
 import { TERRAIN, VEGETATION } from '../config';
 import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
-import { getMoisture, getWoodland } from '../ecology/landscape-ecology';
+import {
+  createLandscapeZoneWeights,
+  getMoisture,
+  getWoodland,
+  writeLandscapeZoneWeights,
+  type LandscapeSurfaceSample,
+  type LandscapeZoneWeights,
+} from '../ecology/landscape-ecology';
 import type { HeightField } from '../core/height-field';
 import type { TreeSpecies } from './tree-templates';
 
@@ -31,7 +38,11 @@ export function acceptsTreeDensity(densityRank: number, density: number): boolea
 
 export class ForestDistribution {
   private readonly cache = new Map<string, TreePlacement[]>();
+  private readonly allVariantIndices: number[] = [];
+  private readonly zones = createLandscapeZoneWeights();
+  private readonly surface: LandscapeSurfaceSample = { x: 0, z: 0, height: 0, slope: 0 };
   private readonly variantIndices: Record<TreeSpecies, number[]> = {
+    ash: [],
     aspen: [],
     oak: [],
     pine: [],
@@ -43,7 +54,10 @@ export class ForestDistribution {
     variants: readonly { readonly species: TreeSpecies }[],
   ) {
     if (variants.length === 0) throw new Error('Forest distribution requires tree variants.');
-    variants.forEach((variant, index) => this.variantIndices[variant.species].push(index));
+    variants.forEach((variant, index) => {
+      this.variantIndices[variant.species].push(index);
+      this.allVariantIndices.push(index);
+    });
   }
 
   public getChunkPlacements(chunkX: number, chunkZ: number): TreePlacement[] {
@@ -75,7 +89,12 @@ export class ForestDistribution {
     const slope = this.heightField.getSlope(x, z);
     const moisture = getMoisture(this.heightField, x, z, height);
     if (!this.acceptsSite(x, z, height, slope, moisture, cellHash)) return null;
-    return this.buildPlacement(x, z, height, slope, moisture, cellHash);
+    this.surface.x = x;
+    this.surface.z = z;
+    this.surface.height = height;
+    this.surface.slope = slope;
+    writeLandscapeZoneWeights(this.heightField, this.surface, this.zones);
+    return this.buildPlacement(x, z, height, cellHash, this.zones);
   }
 
   private getWorldCoordinate(chunk: number, cell: number, hash: number, salt: number): number {
@@ -98,7 +117,13 @@ export class ForestDistribution {
     return unitRandom(hashCoordinates(hash, 7, 13)) < probability;
   }
 
-  private buildPlacement(x: number, z: number, y: number, slope: number, moisture: number, hash: number): TreePlacement {
+  private buildPlacement(
+    x: number,
+    z: number,
+    y: number,
+    hash: number,
+    zones: LandscapeZoneWeights,
+  ): TreePlacement {
     return {
       x,
       y,
@@ -107,7 +132,7 @@ export class ForestDistribution {
       scale: 0.82 + unitRandom(hashCoordinates(hash, 17, 19)) * 0.38,
       widthScale: 0.9 + unitRandom(hashCoordinates(hash, 61, 67)) * 0.22,
       depthScale: 0.9 + unitRandom(hashCoordinates(hash, 71, 73)) * 0.2,
-      variant: this.chooseVariant(x, z, y, slope, moisture, hash),
+      variant: this.chooseVariant(zones, hash),
       windPhase: unitRandom(hashCoordinates(hash, 37, 41)) * Math.PI * 2,
       windStrength: 0.72 + unitRandom(hashCoordinates(hash, 43, 47)) * 0.48,
       tint: unitRandom(hashCoordinates(hash, 53, 59)),
@@ -115,21 +140,26 @@ export class ForestDistribution {
     };
   }
 
-  private chooseVariant(x: number, z: number, height: number, slope: number, moisture: number, hash: number): number {
-    const species = this.chooseSpecies(x, z, height, slope, moisture);
+  private chooseVariant(zones: LandscapeZoneWeights, hash: number): number {
+    const species = this.chooseSpecies(zones, hash);
     const candidates = this.variantIndices[species];
-    return candidates[hashCoordinates(hash, 23, 31) % candidates.length] ?? 0;
+    const pool = candidates.length > 0 ? candidates : this.allVariantIndices;
+    return pool[hashCoordinates(hash, 23, 31) % pool.length] ?? 0;
   }
 
-  private chooseSpecies(x: number, z: number, height: number, slope: number, moisture: number): TreeSpecies {
-    const broadBiome = this.heightField.getNoise01((x - 610) * 0.00085, (z + 370) * 0.00085, 3);
-    const localBiome = this.heightField.getNoise01((x + 190) * 0.0045, (z - 430) * 0.0045, 2);
-    const biome = broadBiome * 0.72 + localBiome * 0.28;
-    const highland = MathUtils.smoothstep(height, 58, 175);
-    const pineAffinity = highland * 0.62 + MathUtils.smoothstep(slope, 0.32, 0.8) * 0.18 + (1 - moisture) * 0.16;
-    if (biome < pineAffinity) return 'pine';
-    const wetland = moisture * 0.68 + biome * 0.32;
-    if (wetland > 0.58) return 'aspen';
-    return 'oak';
+  private chooseSpecies(zones: LandscapeZoneWeights, hash: number): TreeSpecies {
+    const weights: Readonly<Record<TreeSpecies, number>> = {
+      ash: zones.moistBroadleaf * 0.82 + zones.wetLowland * 0.18,
+      aspen: zones.wetLowland * 0.78 + zones.moistBroadleaf * 0.42,
+      oak: zones.dryBroadleaf + zones.meadow * 0.12,
+      pine: zones.coniferHighland + zones.rockyRidge * 0.16,
+    };
+    const total = weights.ash + weights.aspen + weights.oak + weights.pine;
+    let selection = unitRandom(hashCoordinates(hash, 89, 97)) * total;
+    for (const species of ['ash', 'aspen', 'oak', 'pine'] as const) {
+      selection -= weights[species];
+      if (selection <= 0) return species;
+    }
+    return 'pine';
   }
 }
