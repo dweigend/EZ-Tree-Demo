@@ -4,10 +4,17 @@
  */
 
 import { Tree } from '@dgreenheck/ez-tree';
-import { BufferAttribute, BufferGeometry, CylinderGeometry, Matrix4, MeshPhongMaterial } from 'three';
+import { MeshPhongMaterial } from 'three';
 import { hashCoordinates } from '../core/random';
 import type { WindUniforms } from '../wind/wind-field';
 import { createBranchMaterial, createLeafMaterial } from './tree-materials';
+import {
+  createHedgeLods,
+  createTreeLods,
+  normaliseTreeGeometry,
+  type TreeGeometryPair,
+  type TreeLod,
+} from './tree-geometry';
 import {
   createVariedTreePreset,
   HEDGE_TEMPLATES,
@@ -16,12 +23,7 @@ import {
   type TreeTemplate,
 } from './tree-templates';
 
-export type TreeLod = 'near' | 'middle' | 'far';
-
-export interface TreeGeometryPair {
-  readonly branches: BufferGeometry;
-  readonly leaves: BufferGeometry;
-}
+export type { TreeGeometryPair, TreeLod } from './tree-geometry';
 
 export interface TreeVariant {
   readonly presetId: TreeTemplate['id'];
@@ -39,20 +41,7 @@ export function createTreeVariants(wind: WindUniforms, seed: number): TreeVarian
 export function createHedgeVariant(wind: WindUniforms, seed: number): TreeVariant {
   const template = HEDGE_TEMPLATES[0];
   if (!template) throw new Error('Hedge generation requires at least one preset.');
-  const variant = createVariant(template, variantSeed(seed, 0), wind);
-  const near = {
-    branches: createDistanceTrunk(6),
-    leaves: thinLeaves(inflateLeafCards(variant.lods.near.leaves, 1.4), 6),
-  };
-  const far = {
-    branches: createDistanceTrunk(4),
-    leaves: thinLeaves(inflateLeafCards(variant.lods.near.leaves, 2.8), 40),
-  };
-  variant.lods.near.branches.dispose();
-  variant.lods.near.leaves.dispose();
-  variant.lods.far.branches.dispose();
-  variant.lods.far.leaves.dispose();
-  return { ...variant, lods: { ...variant.lods, near, far } };
+  return createVariant(template, variantSeed(seed, 0), wind);
 }
 
 function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms): TreeVariant {
@@ -60,7 +49,7 @@ function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms)
   // EZ-Tree's runtime accepts preset data, but 1.1.0 types require its mutable TreeOptions class.
   const tree = new Tree(options as Tree['options']);
   tree.generate();
-  const near = normalisePair(tree.branchesMesh.geometry, tree.leavesMesh.geometry);
+  const near = normaliseTreeGeometry(tree.branchesMesh.geometry, tree.leavesMesh.geometry);
   const branchSource = requirePhongMaterial(tree.branchesMesh.material);
   const leafSource = requirePhongMaterial(tree.leavesMesh.material);
   const variant = {
@@ -69,7 +58,7 @@ function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms)
     height: template.height,
     branchMaterial: createBranchMaterial(branchSource),
     leafMaterial: createLeafMaterial(leafSource, wind),
-    lods: createLods(near),
+    lods: template.kind === 'hedge' ? createHedgeLods(near) : createTreeLods(near),
   } satisfies TreeVariant;
   disposeGeneratedTree(tree);
   return variant;
@@ -77,68 +66,6 @@ function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms)
 
 function variantSeed(seed: number, index: number): number {
   return 1 + (hashCoordinates(seed, index, 0x61c88647) % 65_534);
-}
-
-function normalisePair(branchSource: BufferGeometry, leafSource: BufferGeometry): TreeGeometryPair {
-  const branches = branchSource.clone();
-  const leaves = leafSource.clone();
-  branches.computeBoundingBox();
-  leaves.computeBoundingBox();
-  const height = Math.max(branches.boundingBox?.max.y ?? 1, leaves.boundingBox?.max.y ?? 1);
-  const scale = new Matrix4().makeScale(1 / height, 1 / height, 1 / height);
-  branches.applyMatrix4(scale);
-  leaves.applyMatrix4(scale);
-  return { branches, leaves };
-}
-
-function createLods(near: TreeGeometryPair): Readonly<Record<TreeLod, TreeGeometryPair>> {
-  return {
-    near,
-    middle: { branches: createDistanceTrunk(5), leaves: thinLeaves(inflateLeafCards(near.leaves, 1.9), 10) },
-    far: { branches: createDistanceTrunk(4), leaves: thinLeaves(inflateLeafCards(near.leaves, 2.7), 20) },
-  };
-}
-
-function createDistanceTrunk(radialSegments: number): BufferGeometry {
-  const trunk = new CylinderGeometry(0.01, 0.032, 0.65, radialSegments, 1, false);
-  trunk.translate(0, 0.325, 0);
-  return trunk;
-}
-
-function inflateLeafCards(source: BufferGeometry, factor: number): BufferGeometry {
-  const geometry = source.clone();
-  const positions = geometry.getAttribute('position');
-  for (let start = 0; start + 3 < positions.count; start += 4) {
-    const centerX = (positions.getX(start) + positions.getX(start + 1) + positions.getX(start + 2) + positions.getX(start + 3)) / 4;
-    const centerY = (positions.getY(start) + positions.getY(start + 1) + positions.getY(start + 2) + positions.getY(start + 3)) / 4;
-    const centerZ = (positions.getZ(start) + positions.getZ(start + 1) + positions.getZ(start + 2) + positions.getZ(start + 3)) / 4;
-    for (let vertex = start; vertex < start + 4; vertex += 1) {
-      positions.setXYZ(
-        vertex,
-        centerX + (positions.getX(vertex) - centerX) * factor,
-        centerY + (positions.getY(vertex) - centerY) * factor,
-        centerZ + (positions.getZ(vertex) - centerZ) * factor,
-      );
-    }
-  }
-  positions.needsUpdate = true;
-  geometry.computeBoundingSphere();
-  return geometry;
-}
-
-function thinLeaves(source: BufferGeometry, stride: number): BufferGeometry {
-  const geometry = source.clone();
-  const sourceIndex = source.index;
-  if (!sourceIndex) return geometry;
-  const cardPairSize = 12;
-  const selected: number[] = [];
-  for (let offset = 0; offset < sourceIndex.count; offset += cardPairSize * stride) {
-    const end = Math.min(offset + cardPairSize, sourceIndex.count);
-    for (let index = offset; index < end; index += 1) selected.push(sourceIndex.getX(index));
-  }
-  geometry.setIndex(new BufferAttribute(new Uint32Array(selected), 1));
-  geometry.computeBoundingSphere();
-  return geometry;
 }
 
 function requirePhongMaterial(material: Tree['branchesMesh']['material']): MeshPhongMaterial {

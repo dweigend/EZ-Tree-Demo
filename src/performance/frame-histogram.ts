@@ -4,6 +4,7 @@
  */
 
 const SAMPLE_CAPACITY = 60_000;
+const SLOW_120_THRESHOLD_MS = 10.5;
 const MISSED_FRAME_THRESHOLD_MS = 16.7;
 
 export interface FrameMetrics {
@@ -12,6 +13,8 @@ export interface FrameMetrics {
   readonly p95Ms: number;
   readonly p99Ms: number;
   readonly maxMs: number;
+  readonly framesOver10_5Ms: number;
+  readonly framesOver10_5Percent: number;
   readonly framesOver16_7Ms: number;
   readonly framesOver16_7Percent: number;
   readonly longestMissedFrameRun: number;
@@ -22,6 +25,7 @@ export class FrameHistogram {
   private sampleCount = 0;
   private writeIndex = 0;
   private missedFrames = 0;
+  private slow120Frames = 0;
   private currentMissedRun = 0;
   private longestMissedRun = 0;
 
@@ -30,6 +34,7 @@ export class FrameHistogram {
     this.samples[this.writeIndex] = intervalMs;
     this.writeIndex = (this.writeIndex + 1) % SAMPLE_CAPACITY;
     this.sampleCount = Math.min(this.sampleCount + 1, SAMPLE_CAPACITY);
+    if (intervalMs > SLOW_120_THRESHOLD_MS) this.slow120Frames += 1;
     this.recordMiss(intervalMs > MISSED_FRAME_THRESHOLD_MS);
   }
 
@@ -37,6 +42,7 @@ export class FrameHistogram {
     this.sampleCount = 0;
     this.writeIndex = 0;
     this.missedFrames = 0;
+    this.slow120Frames = 0;
     this.currentMissedRun = 0;
     this.longestMissedRun = 0;
   }
@@ -45,12 +51,15 @@ export class FrameHistogram {
     if (this.sampleCount === 0) return emptyMetrics();
     const sorted = Array.from(this.samples.subarray(0, this.sampleCount)).sort((a, b) => a - b);
     const missedPercent = (this.missedFrames / this.sampleCount) * 100;
+    const slow120Percent = (this.slow120Frames / this.sampleCount) * 100;
     return {
       sampleCount: this.sampleCount,
       p50Ms: percentile(sorted, 0.5),
       p95Ms: percentile(sorted, 0.95),
       p99Ms: percentile(sorted, 0.99),
       maxMs: sorted.at(-1) ?? 0,
+      framesOver10_5Ms: this.slow120Frames,
+      framesOver10_5Percent: Number(slow120Percent.toFixed(3)),
       framesOver16_7Ms: this.missedFrames,
       framesOver16_7Percent: Number(missedPercent.toFixed(3)),
       longestMissedFrameRun: this.longestMissedRun,
@@ -80,6 +89,8 @@ function emptyMetrics(): FrameMetrics {
     p95Ms: 0,
     p99Ms: 0,
     maxMs: 0,
+    framesOver10_5Ms: 0,
+    framesOver10_5Percent: 0,
     framesOver16_7Ms: 0,
     framesOver16_7Percent: 0,
     longestMissedFrameRun: 0,

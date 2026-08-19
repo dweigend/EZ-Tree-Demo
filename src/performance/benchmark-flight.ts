@@ -7,7 +7,7 @@ import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
 import type { BenchmarkMode } from '../config';
 import type { HeightField } from '../core/height-field';
 
-const BENCHMARK_SPEED = 220;
+const BENCHMARK_SPEED = 320;
 const FLIGHT_HEIGHT = 62;
 
 export class BenchmarkFlight {

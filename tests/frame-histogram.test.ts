@@ -12,6 +12,7 @@ describe('frame histogram', () => {
     const snapshot = histogram.snapshot();
     expect(snapshot.sampleCount).toBe(6);
     expect(snapshot.maxMs).toBe(22);
+    expect(snapshot.framesOver10_5Ms).toBe(5);
     expect(snapshot.framesOver16_7Ms).toBe(2);
     expect(snapshot.longestMissedFrameRun).toBe(2);
   });

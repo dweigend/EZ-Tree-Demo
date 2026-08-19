@@ -73,6 +73,7 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
 const parameters = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
 export const QUALITY_PROFILE = PROFILES[parseQualityProfileName(parameters.get('profile'))];
 export const BENCHMARK_MODE = parseBenchmarkMode(parameters.get('benchmark'));
+const variantStressMode = parameters.get('variantStress') === '1';
 const desktopDistance = readNumberParameter(parameters, 'distance', QUALITY_PROFILE.viewDistance, 720, 1_500);
 const viewDistance = QUALITY_PROFILE.name === 'desktop' ? desktopDistance : QUALITY_PROFILE.viewDistance;
 const fogDensity = readNumberParameter(parameters, 'fog', 1.7 / viewDistance, 0.0008, 0.0026);
@@ -124,6 +125,11 @@ export const RENDERING = {
   xrFramebufferScale: QUALITY_PROFILE.xrFramebufferScale,
   xrFoveation: QUALITY_PROFILE.xrFoveation,
   xrTargetFrameRate: 90,
+} as const;
+
+export const VARIANT_GENERATION = {
+  initialDelayMs: variantStressMode ? 500 : QUALITY_PROFILE.name === 'pico90' ? 60_000 : 30_000,
+  intervalMs: variantStressMode ? 2_000 : QUALITY_PROFILE.name === 'pico90' ? 60_000 : 30_000,
 } as const;
 
 export function parseQualityProfileName(value: string | null): QualityProfileName {

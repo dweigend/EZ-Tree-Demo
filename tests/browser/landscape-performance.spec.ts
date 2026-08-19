@@ -32,7 +32,9 @@ test('desktop flight stays inside the landscape render budget', async ({ page },
   expect(snapshot?.diagnostics.drawCalls).toBeLessThanOrEqual(35);
   expect(snapshot?.diagnostics.triangles).toBeLessThanOrEqual(2_500_000);
   expect(snapshot?.p50Ms).toBeLessThanOrEqual(8.4);
+  expect(snapshot?.p95Ms).toBeLessThanOrEqual(9.3);
   expect(snapshot?.p99Ms).toBeLessThanOrEqual(10.5);
+  expect(snapshot?.framesOver10_5Percent).toBeLessThanOrEqual(1);
   expect(snapshot?.framesOver16_7Percent).toBeLessThanOrEqual(0.1);
   expect(snapshot?.longestMissedFrameRun).toBeLessThanOrEqual(1);
   expect(consoleErrors).toEqual([]);
@@ -53,4 +55,29 @@ test('PICO profile keeps non-XR render work below headset ceilings', async ({ pa
   expect(snapshot?.diagnostics.rocks).toBeGreaterThan(175);
   expect(snapshot?.diagnostics.drawCalls).toBeLessThanOrEqual(32);
   expect(snapshot?.diagnostics.triangles).toBeLessThanOrEqual(800_000);
+});
+
+test('background preset generation stays single-job and frame-budget safe', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  await page.goto('/?profile=desktop&benchmark=desktop-flight&variantStress=1');
+  await page.waitForFunction(() => (window.__LANDSCAPE_DIAGNOSTICS__?.drawCalls ?? 0) > 0);
+  await page.evaluate(() => window.__LANDSCAPE_BENCHMARK__?.reset());
+  await page.waitForFunction(() => (window.__LANDSCAPE_DIAGNOSTICS__?.generatedVariants ?? 0) >= 3, null, {
+    timeout: 20_000,
+  });
+  const snapshot = await page.evaluate(() => window.__LANDSCAPE_BENCHMARK__?.snapshot());
+  expect(snapshot?.diagnostics.generatedVariants).toBeGreaterThanOrEqual(3);
+  expect(snapshot?.diagnostics.pendingVariantJobs).toBeLessThanOrEqual(1);
+  expect(snapshot?.diagnostics.lastVariantGenerationMs).toBeGreaterThan(0);
+  expect(snapshot?.diagnostics.fps).toBeGreaterThanOrEqual(118);
+  expect(snapshot?.p50Ms).toBeLessThanOrEqual(8.4);
+  expect(snapshot?.p95Ms).toBeLessThanOrEqual(9.3);
+  expect(snapshot?.p99Ms).toBeLessThanOrEqual(10.5);
+  expect(snapshot?.longestMissedFrameRun).toBeLessThanOrEqual(1);
+  expect(consoleErrors).toEqual([]);
+  await page.goto('about:blank');
+  expect(consoleErrors).toEqual([]);
 });
