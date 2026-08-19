@@ -114,6 +114,17 @@ float getTerrainTrailMask() {
   return 1.0 - smoothstep(2.0, 7.0, distanceToTrail);
 }
 
+vec3 getTerrainBaseColor(float layer) {
+  if (layer < 0.5) return vec3(0.3111, 0.2400, 0.0828);
+  if (layer < 1.5) return vec3(0.3027, 0.2683, 0.2165);
+  if (layer < 2.5) return vec3(0.4476, 0.3025, 0.2044);
+  if (layer < 3.5) return vec3(0.5509, 0.4371, 0.2260);
+  if (layer < 4.5) return vec3(0.5672, 0.5299, 0.3646);
+  if (layer < 5.5) return vec3(0.6167, 0.5034, 0.3978);
+  if (layer < 6.5) return vec3(0.3071, 0.2492, 0.1217);
+  return vec3(0.5755, 0.5034, 0.4182);
+}
+
 void considerTerrainLayer(
   float weight,
   float layer,
@@ -156,20 +167,38 @@ considerTerrainLayer(vTerrainMaterialWeightsB.x, 4.0, terrainFirstWeight, terrai
 considerTerrainLayer(vTerrainMaterialWeightsB.y, 5.0, terrainFirstWeight, terrainFirstLayer, terrainSecondWeight, terrainSecondLayer);
 considerTerrainLayer(vTerrainMaterialWeightsB.z, 6.0, terrainFirstWeight, terrainFirstLayer, terrainSecondWeight, terrainSecondLayer);
 considerTerrainLayer(terrainTrailWeight, 7.0, terrainFirstWeight, terrainFirstLayer, terrainSecondWeight, terrainSecondLayer);
-float terrainLayerMix = terrainSecondWeight / max(terrainFirstWeight + terrainSecondWeight, 0.0001);
 vec2 terrainFirstRepeatedUv;
 vec2 terrainFirstMirrorSign;
 vec2 terrainFirstRotation;
-vec2 terrainSecondRepeatedUv;
-vec2 terrainSecondMirrorSign;
-vec2 terrainSecondRotation;
 getTerrainLayerUv(terrainFirstLayer, terrainFirstRepeatedUv, terrainFirstMirrorSign, terrainFirstRotation);
-getTerrainLayerUv(terrainSecondLayer, terrainSecondRepeatedUv, terrainSecondMirrorSign, terrainSecondRotation);
 vec2 terrainFirstUv = getTerrainAtlasUv(terrainFirstLayer, terrainFirstRepeatedUv);
-vec2 terrainSecondUv = getTerrainAtlasUv(terrainSecondLayer, terrainSecondRepeatedUv);
-vec3 terrainFirstColor = texture2D(uTerrainAlbedoAtlas, terrainFirstUv).rgb;
-vec3 terrainSecondColor = texture2D(uTerrainAlbedoAtlas, terrainSecondUv).rgb;
-diffuseColor.rgb *= mix(terrainFirstColor, terrainSecondColor, terrainLayerMix);
+vec2 terrainDetailRepeatedUv;
+vec2 terrainDetailMirrorSign;
+vec2 terrainDetailRotation;
+getTerrainLayerUv(4.0, terrainDetailRepeatedUv, terrainDetailMirrorSign, terrainDetailRotation);
+vec2 terrainDetailUv = getTerrainAtlasUv(4.0, terrainDetailRepeatedUv);
+vec3 terrainDetailColor = texture2D(uTerrainAlbedoAtlas, terrainDetailUv).rgb;
+vec3 terrainBaseColor = (
+  getTerrainBaseColor(0.0) * vTerrainMaterialWeightsA.x
+  + getTerrainBaseColor(1.0) * vTerrainMaterialWeightsA.y
+  + getTerrainBaseColor(2.0) * vTerrainMaterialWeightsA.z
+  + getTerrainBaseColor(3.0) * vTerrainMaterialWeightsA.w
+  + getTerrainBaseColor(4.0) * vTerrainMaterialWeightsB.x
+  + getTerrainBaseColor(5.0) * vTerrainMaterialWeightsB.y
+  + getTerrainBaseColor(6.0) * vTerrainMaterialWeightsB.z
+  + getTerrainBaseColor(7.0) * terrainTrailWeight
+);
+float terrainTotalWeight = max(
+  vTerrainMaterialWeightsA.x + vTerrainMaterialWeightsA.y + vTerrainMaterialWeightsA.z + vTerrainMaterialWeightsA.w
+  + vTerrainMaterialWeightsB.x + vTerrainMaterialWeightsB.y + vTerrainMaterialWeightsB.z + terrainTrailWeight,
+  0.0001
+);
+terrainBaseColor /= terrainTotalWeight;
+vec3 terrainDetail = clamp(terrainDetailColor / getTerrainBaseColor(4.0), vec3(0.65), vec3(1.45));
+float terrainDominance = (terrainFirstWeight - terrainSecondWeight) / max(terrainFirstWeight, 0.0001);
+float terrainDetailStrength = smoothstep(0.06, 0.38, terrainDominance) * 0.85;
+vec3 terrainColor = terrainBaseColor * mix(vec3(1.0), terrainDetail, 0.55);
+diffuseColor.rgb *= terrainColor * 0.85;
 `;
 
 // One dominant packed sample preserves normal/roughness detail without doubling fragment texture bandwidth.
@@ -178,11 +207,11 @@ vec4 terrainFirstSurface = texture2D(normalMap, terrainFirstUv);
 `;
 
 const groundRoughnessShader = /* glsl */ `
-float roughnessFactor = roughness * terrainFirstSurface.a;
+float roughnessFactor = roughness * mix(0.92, terrainFirstSurface.a, terrainDetailStrength);
 `;
 
 const groundNormalShader = /* glsl */ `
 vec3 mapN = decodeTerrainNormal(terrainFirstSurface, terrainFirstMirrorSign, terrainFirstRotation);
-mapN.xy *= normalScale;
+mapN.xy *= normalScale * terrainDetailStrength;
 normal = normalize(tbn * mapN);
 `;

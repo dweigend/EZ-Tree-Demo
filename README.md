@@ -35,7 +35,8 @@ https://<device-reachable-host>/?profile=pico90
 ```
 
 Reproduzierbare Flugmessungen laufen ohne Pointer-Lock über `benchmark=desktop-flight` oder
-`benchmark=xr-flight`. Messwerte stehen unter `window.__LANDSCAPE_BENCHMARK__` bereit.
+`benchmark=xr-flight`. Messwerte stehen unter `window.__LANDSCAPE_BENCHMARK__` bereit. Der Flug läuft
+mit 320 m/s. `variantStress=1` verkürzt ausschließlich für Tests das Worker-Intervall auf zwei Sekunden.
 
 ## Steuerung
 
@@ -48,9 +49,9 @@ Reproduzierbare Flugmessungen laufen ohne Pointer-Lock über `benchmark=desktop-
 
 ## Architektur
 
-- `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und sieben organisch gemischte Atlas-Materialien
-- `ecology/`: gemeinsame Feuchte-, Bodenbedeckungs- und Wald-Makrofelder ohne Platzierungsregeln
-- `trees/`: drei offizielle mittlere EZ-Tree-Templates in globalen Instancing-Batches und drei harten LOD-Bändern
+- `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und acht weich zonierte Atlas-Materialien
+- `ecology/`: sechs gemeinsame, kontinuierliche Zonenfelder ohne systemspezifische Platzierungsregeln
+- `trees/`: alle 16 offiziellen EZ-Tree-Presets, vier Baumslots, Hecken, harte LODs und ein Variant-Worker
 - `vegetation/`: deterministische Steinverteilung in drei globalen Ground-Cover-Batches
 - `grass/`: organische Wiesenmaske, zusammengesetzte Patch-Cluster und größere Büschel in zwei Instancing-Batches
 - `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume und beide Grasebenen
@@ -62,15 +63,16 @@ Alle mehrfach vorkommenden Modellassets werden pro Geometrie-/Material-/LOD-Komb
 fest dimensionierten `InstancedMesh` gebündelt. Nur Matrix, Farbe und Windwerte variieren je Instanz.
 Terrain-Chunks bleiben recycelte Einzelmeshes, da jeder Chunk eigene Vertexhöhen und Bodengewichte trägt.
 
-Wiese, Matsch, drei Waldböden, Fels und Geröllwege werden aus Höhe, Hang, Feuchte, Woodland und
-verzerrten Weltkoordinaten gewichtet. Die Gewichte entstehen nur bei einer Chunk-Zuweisung. Desktop
-und PICO mischen höchstens zwei Albedo-Samples und lesen nur die dominante Surface-Map. Es entsteht
-keine Per-Frame-CPU-Arbeit. Die Surface-Atlanten speichern Normalen in RGB und die vollständige
-Roughness-Map in Alpha. Eine niedrig stehende gerichtete Sonne macht Relief und Schatten sichtbar.
+Wiese, Feuchtland, trockener und feuchter Laubwald, Nadelhochland und Felsrücken werden aus Höhe,
+Hang, Feuchte und Woodland weich gewichtet. Die Gewichte entstehen nur bei einer Chunk-Zuweisung.
+Der Shader mischt kontinuierliche, aus den acht Texturen abgeleitete Makrofarben mit einem neutralen
+Albedo-Mikrodetail und liest Normalen/Roughness nur aus der dominanten zonengerechten Surface-Zelle.
+So bleiben Übergänge ohne Top-N-Konturen bei weiterhin je einem Albedo- und Surface-Sample.
 
 ## Terrain-Materialien bauen
 
-Die aktive Palette nutzt sieben lokale Poly-Haven-CC0-Materialien. Quellen, Autoren, Kachelung und
+Die aktive Palette nutzt acht lokale Poly-Haven-CC0-Materialien einschließlich Forest Ground 03 für
+Nadelboden. Quellen, Autoren, Kachelung und
 Download-URLs stehen in `assets/source/terrain-materials/polyhaven.json`. ImageMagick packt daraus
 feste Desktop-/PICO-Atlanten:
 
@@ -91,10 +93,15 @@ bun run build
 bun run test:browser
 ```
 
-Der Browser-Test prüft statischen dichten Wald, einen 12-Sekunden-Flug und die PICO-Geometriebudgets.
+Der Browser-Test prüft statischen dichten Wald, einen 12-Sekunden-Flug bei 320 m/s, Worker-Stress und
+die PICO-Geometriebudgets.
 Die physische PICO-90-Freigabe bleibt ein separater Hardware-Test gemäß `docs/PERFORMANCE.md`.
 
-Die Laufzeit erzeugt keine neuen EZ-Tree-Geometrien. Terrain-Ränder verschwinden in abgestimmtem Fog und Himmel. Das Terrain behält ein vollständiges Sicherheitsfenster um die Kamera. Vegetation nutzt darin einen vollen 3×3-Kern plus einen breiten Vorwärtssektor; weit hinter der Blickrichtung werden nur kleine Assets ausgelassen. Wald- und Ground-Cover-Daten werden vor Chunk-Wechseln in Blickrichtung priorisiert, während Gras- und Terrain-Aufbau ihre Arbeit über mehrere Frames verteilen.
+Nach dem Start erzeugt genau ein Web Worker alle 30 Sekunden auf Desktop beziehungsweise 60 Sekunden
+auf PICO eine neue, topologisch begrenzte Presetvariante. Die Hauptszene übernimmt nur transferierte
+Typed Arrays und tauscht Nahgeometrie erst aus, wenn der betroffene Slot im vorherigen Fenster unsichtbar
+war. Es gibt keinen synchronen Fallback. Terrain-Ränder verschwinden in abgestimmtem Fog und Himmel;
+Wald- und Ground-Cover-Daten werden vor Chunk-Wechseln in Blickrichtung priorisiert.
 
 ## Abhängigkeiten
 

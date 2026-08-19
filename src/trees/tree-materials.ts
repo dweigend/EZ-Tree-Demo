@@ -9,8 +9,9 @@ import { bindWindUniforms, type WindUniforms } from '../wind/wind-field';
 
 export function createBranchMaterial(source: MeshPhongMaterial): MeshPhongMaterial {
   const material = source.clone();
-  material.emissive.set('#211a14');
-  material.emissiveIntensity = 0.04;
+  material.color.set('#ffffff');
+  material.emissive.set('#4b3828');
+  material.emissiveIntensity = 0.18;
   material.shininess = 2;
   material.vertexColors = true;
   return material;
@@ -18,8 +19,9 @@ export function createBranchMaterial(source: MeshPhongMaterial): MeshPhongMateri
 
 export function createLeafMaterial(source: MeshPhongMaterial, wind: WindUniforms): MeshPhongMaterial {
   const material = source.clone();
-  material.emissive.set('#182314');
-  material.emissiveIntensity = 0.07;
+  material.color.set('#ffffff');
+  material.emissive.set('#486843');
+  material.emissiveIntensity = 0.28;
   material.shininess = 1;
   material.alphaToCoverage = true;
   material.dithering = true;
@@ -29,7 +31,7 @@ export function createLeafMaterial(source: MeshPhongMaterial, wind: WindUniforms
     shader.vertexShader = `${WIND_INSTANCE_GLSL}\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', leafProjectionShader);
   };
-  material.customProgramCacheKey = () => 'endless-wilds-tree-leaf-v3';
+  material.customProgramCacheKey = () => 'endless-wilds-tree-leaf-v4';
   return material;
 }
 

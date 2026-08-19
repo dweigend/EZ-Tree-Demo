@@ -31,8 +31,8 @@ export function normaliseTreeGeometry(
 export function createTreeLods(near: TreeGeometryPair): Readonly<Record<TreeLod, TreeGeometryPair>> {
   return {
     near,
-    middle: { branches: createDistanceTrunk(5), leaves: thinLeaves(inflateLeafCards(near.leaves, 1.9), 10) },
-    far: { branches: createDistanceTrunk(4), leaves: thinLeaves(inflateLeafCards(near.leaves, 2.7), 20) },
+    middle: { branches: createDistanceTrunk(5), leaves: thinLeaves(inflateLeafCards(near.leaves, 2.6), 10) },
+    far: { branches: createDistanceTrunk(4), leaves: thinLeaves(inflateLeafCards(near.leaves, 3.8), 20) },
   };
 }
 

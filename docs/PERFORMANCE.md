@@ -1,95 +1,69 @@
+<!--
+Purpose: Records reproducible browser performance evidence and the remaining physical-headset gate.
+Context: The landscape streams terrain at 320 m/s while vegetation and tree variants update in bounded work.
+Boundary: Desktop Chrome evidence is not a physical PICO 4 performance claim.
+-->
+
 # Performance-Strategie
 
-Die Landschaft priorisiert stabile Framezeiten vor maximaler Objektdichte. Die Messwerte stammen aus einem automatisierten Desktop-Chromium-Flug und sind kein Ersatz für ein späteres WebXR-Profil auf dem Zielgerät.
+Die Landschaft priorisiert stabile Framezeiten vor maximalem Detail. Qualitätsprofile bleiben beim Start
+unveränderlich; es gibt keinen Auto-Scaler. Wiederholte Modelle sind instanziert, Terrain-Chunks werden
+recycelt und optionale CPU-Arbeit wird über Folgeframes verteilt.
 
-## Aktueller Stand
+## Aktueller Renderpfad
 
-- Terrain: 49 recycelte Chunks bei der Standardsichtweite
-- Vegetationsdetail: 31 blickrichtungsgewichtete Chunks mit vollem 3×3-Sicherheitskern
-- Rendering: globale Instancing-Batches, drei einmalig erzeugte EZ-Tree-Templates, gemeinsame Mittel-/Fern-LODs, zwei Gras-Batches und drei Stein-Batches
-- Streaming: Baum-Rebuild, Ground-Cover-Rebuild und Terrain-Resample werden auf getrennte Frames verteilt
-- Buffer: dynamische Instanzattribute laden nur den tatsächlich belegten Präfix über die Three.js-Update-Ranges hoch
-- Sichtkanten: Distanz-Ausdünnung, harte LOD-Bänder und abgestimmter Fog statt doppelter Instanzen in Kreuzblenden
-- Boden: sieben Poly-Haven-Zonen in einem Atlas; der Shader wählt pro Fragment nur die zwei stärksten Schichten
+- Desktop: 49 Terrain-Chunks, 31 blickrichtungsgewichtete Vegetations-Chunks und 1.050 m Sichtweite.
+- Bäume: vier Arten-Slots, ein gemeinsamer Nahstamm-Batch und gemeinsame Mittel-/Fernsilhouetten.
+- Hecken: zwei belaubte LOD-Batches; unsichtbare Ast-Batches sparen Draw Calls und Dreiecke.
+- Boden: acht Atlasflächen, sechs kontinuierliche Zonen, ein Albedo- und ein gepackter Surface-Sample.
+- Worker: genau ein Variantenjob; 30 s Desktop, 60 s PICO, 2 s nur mit `variantStress=1`.
+- Streaming: Vegetations-Rebuild, Ground-Cover-Rebuild und Terrain-Resample werden nicht gestapelt.
 
-Ein reproduzierter 12-Sekunden-Testflug mit 220 m/s in Headless Chrome bei 1280×720 sank gegenüber `ec713e2` von 20,2 auf 8,17 ms mittlere Framezeit. p99 sank von 40,6 auf 10,1 ms, der höchste beobachtete Frame von 58,1 auf 17,5 ms. Im vereinfachten Lauf trat kein Frame über 20 ms auf. Die Startzeit bis zur ersten Laufzeitdiagnose sank von rund 2,27 auf 1,18 Sekunden.
+## Verifizierter Stand vom 19. August 2026
 
-Die größten entfernten Kosten waren doppelte EZ-Tree-Generierung, große Presets, LOD-Kreuzblenden mit doppelten Instanzen, vollständig hochgeladene Kapazitätsbuffer und eine transparente Fullscreen-Wolkenschicht. Der Wolkenpass war im bestehenden Look kaum sichtbar, führte aber pro Pixel mehrere Noise-Berechnungen aus. Eine neue Wolkenlösung bleibt deshalb außerhalb des Kernpfads, bis ihr visueller Nutzen gegen eine GPU-Messung belegt ist.
+Headless Chrome, 1280×720, Profil `desktop`, deterministischer Flug mit 320 m/s. Drei getrennte
+30-Sekunden-Fenster mit jeweils zurückgesetztem Histogramm lieferten:
 
-## Nächste sinnvolle Eskalationsstufen
+| Lauf | FPS | p50 | p95 | p99 | >10,5 ms | >16,7 ms | längste Miss-Serie |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 120 | 8,3 ms | 9,1 ms | 10,3 ms | 0,808 % | 0 | 0 |
+| 2 | 120 | 8,3 ms | 9,1 ms | 9,3 ms | 0,389 % | 0 | 0 |
+| 3 | 120 | 8,3 ms | 9,1 ms | 9,4 ms | 0,306 % | 0 | 0 |
 
-1. **Terrain zeilenweise resamplen:** Nur erforderlich, wenn einzelne Terrain-Updates auf XR- oder schwächerer Hardware wieder über das Framebudget steigen. Ein Chunk kann unsichtbar in kleinen Vertex-Budgets vorbereitet und erst danach eingeblendet werden.
-2. **Geräteprofile statt dynamischer Heuristik:** Sichtweite, Pixel Ratio, Schattenauflösung und Grasradius als kleine Desktop-/XR-Profile bündeln. Das ist vorhersehbarer als ein ständig schwankender Auto-Quality-Regler.
-3. **KTX2/Basis für Texturen:** Reduziert Download und GPU-Speicher der eingebetteten Bark-, Leaf- und Ground-Texturen. Vorher muss geprüft werden, ob die EZ-Tree-Paketversion externe komprimierte Texturen sauber zulässt. Der aktuelle JavaScript-Build ist wegen eingebetteter EZ-Tree-Texturen weiterhin ungewöhnlich groß.
-4. **Regionale Baum-Batches:** Vier bis neun räumliche Batches würden Frustum-Culling verbessern, erhöhen aber Draw Calls. Erst einsetzen, wenn GPU-Messungen zeigen, dass unsichtbare Instanzen teurer sind als zusätzliche Batches.
-5. **Far-Impostors:** Nur für Sichtweiten deutlich über dem aktuellen Fog-Bereich. Unter den aktuellen 1050 m sind vereinfachte Geometrien robuster und benötigen keine Atlas-Pipeline.
-6. **Offizielle EZ-Tree-LOD-API übernehmen:** Die Upstream-Dokumentation beschreibt silhouette-stabile `createGeometry()`-/`generateLODs()`-Pfade. Die installierte npm-Version `1.1.0` stellt diese APIs noch nicht bereit; erst nach einer veröffentlichten Paketversion migrieren.
-7. **GPU-Zeit messen:** Vor WebXR-Freigabe CPU-Framezeit um `EXT_disjoint_timer_query_webgl2` und reale Headset-Messungen ergänzen. Desktop-RAF allein zeigt keine GPU- oder thermischen Grenzen.
+Die reguläre 30-Sekunden-Erzeugung lief dabei parallel. Bis Lauf 3 waren Ash, Aspen und Oak bereits
+von Medium auf neue Small-Geometrien rotiert. Die letzten Worker-Jobs benötigten 25,7 ms, 9,1 ms und
+12,4 ms auf dem Worker; der Main Thread erhielt nur Transferables.
 
-Ein selektiver Blur außerhalb des Blickfelds ist bewusst nicht vorgesehen: Der zusätzliche Fullscreen-Pass kostet GPU-Zeit, löst keine Geometriearbeit und ist für Stereo-WebXR doppelt teuer. Reduzierte Detaildichte, Fog und LOD erzeugen denselben Wahrnehmungseffekt günstiger.
+Ein zusätzlicher 1440×900-Lauf zeigte 2,436 % Frames über 10,5 ms und vier Einzelbilder über 16,7 ms.
+Er ist deshalb ausdrücklich keine bestandene 120-FPS-Konfiguration. Reproduzierbare Desktop-Akzeptanz
+bezieht sich auf die im Playwright-Profil festgelegten 1280×720.
 
-## Verifizierter Stand vom 18. August 2026
+## Automatisierte Gates
 
-Desktop Chrome, 1280×720, Profil `desktop`, deterministischer Flug mit 220 m/s. Der finale
-12-Sekunden-Kontrolllauf lieferte 120 FPS bei p50 8,3 ms, p95 9,6 ms und p99 10,3 ms. Es gab
-keinen Frame über 16,7 ms. Am Routenende lagen 877 Bäume, 60 Wiesen-Cluster und 42 Grasbüschel bei
-27 Draw Calls und 2,29 M Dreiecken.
+```bash
+bun run test
+bun run check
+bun run build
+bun run test:browser
+```
 
-Der statische Startbereich enthält nach Warm-up 655 Bäume, 60 Wiesen-Cluster, 35 größere Grasbüschel
-und 682 Steine bei 35 Draw Calls und 2,68 M Dreiecken. Ein Cluster kombiniert drei leicht versetzte
-Grass-Patch-Kopien. Die 180 sichtbaren Quell-Patches bilden dadurch kleine zusammenhängende Wiesen,
-während große Flächen gemäß Habitatmaske bewusst grasfrei bleiben. Blumen sind vollständig entfernt.
+Der Browserlauf prüft statische Dichte, 320-m/s-Streaming, Worker-Stress und das nicht immersive
+PICO-Geometrieprofil. Desktop-Akzeptanz: mindestens 118 angezeigte FPS, p50 höchstens 8,4 ms, p95
+höchstens 9,3 ms, p99 höchstens 10,5 ms, höchstens 1 % über 10,5 ms und keine zwei Misses in Folge.
 
-Das PICO-Profil rendert im Desktop-Browser denselben Startbereich mit 214 Bäumen, 16 Wiesen-Clustern,
-11 Grasbüscheln und 186 Steinen bei 26 Calls und 0,799 M Dreiecken. Diese Werte prüfen Profilbudgets,
-sind aber kein Ersatz für eine XR-Session auf dem Headset.
-
-### Renderstrategie
-
-- Mittel- und Fernbäume teilen pro LOD eine Geometrie und werden nur im vorderen Sicht-Halbraum aufgebaut.
-- Jeder Baum rendert einen Stamm. Mittel-/Fernstämme nutzen einen 4- bis 5-seitigen Distanzstamm statt
-  des kompletten Astnetzes.
-- Drei native Poly-Pizza-Low-Poly-Steine mit 244, 162 und 342 Dreiecken ersetzen die frühere
-  Laufzeit-Decimation. Ihre geschlossene Topologie bleibt unverändert; nur der Durchmesser wird einmal
-  beim Start normalisiert. Die drei globalen Instancing-Batches bleiben bestehen.
-- Gras nutzt zwei feste Instancing-Batches. Drei normalisierte Poly-Pizza-Patches werden einmalig zu
-  einem Wiesen-Cluster zusammengefügt; günstige Büschel ergänzen deren Zwischenräume mit variierter Höhe.
-- Eine grobe 11,5-m-Weltmatrix wird durch 90 % Jitter und drei überlagerte Habitat-Noise-Felder
-  aufgebrochen. Nur geeignete flache, offene Bereiche erhalten Gras. 160 Kandidaten pro Frame begrenzen
-  CPU-Spitzen, danach entstehen weder neue Objekte noch Per-Frame-Transformupdates.
-- Beide Grasmodelle teilen denselben Vertex-Shader-Wind. Höhenbasierte Bend-Weights fixieren die Wurzeln;
-  Phase und Stärke variieren pro Instanz ohne CPU-Animation.
-- Vegetation wird nach einer Richtungsänderung von etwa 20 Grad neu aufgebaut. So bleibt die
-  richtungsgewichtete Auswahl bei interaktivem Flug korrekt, ohne per-frame Objekt-Culling einzuführen.
-- Die Bodenzonen werden nur beim Chunk-Resampling aus Höhe, Hang, Feuchte und Woodland berechnet.
-  Der Geröllweg erhält im Fragment-Shader nur eine analytische Kantenmaske. Draw Calls und Anzahl der
-  Material-Samples bleiben trotz sieben Zonen kompakt: zwei Albedo- und eine dominante Surface-Map.
-- Die vorhandenen Normal-Atlas-Samples liefern zusätzlich die räumliche Roughness aus ihrem Alpha-Kanal.
-  Gespiegelte UVs korrigieren dabei auch die Tangentenrichtung der Normalen. Es entstehen
-  weder zusätzliche Texture-Samples noch Geometrie für Displacement.
-- Die 3x3-Atlanten belegen dekodiert etwa 72 MiB auf Desktop und 18 MiB auf PICO. Die ausgelieferten
-  WebP-Dateien umfassen zusammen rund 10,1 MiB. KTX2 bleibt erst dann sinnvoll, wenn reale PICO-Messungen
-  Texture-Speicher oder Ladezeit als Engpass bestätigen.
-
-### Kontrolllauf mit sieben Bodenzonen
-
-Der 12-Sekunden-Desktop-Flug hielt nach der Atlas- und Zonenumstellung 120 FPS: p50 8,3 ms,
-p95 9,8 ms, p99 10,3 ms, maximal 10,5 ms und kein Frame über 16,7 ms. Am Routenende wurden
-774 Bäume, 24 Wiesen-Cluster, 7 Grasbüschel und 1.013 Steine bei 29 Calls und 1,30 M Dreiecken
-gerendert. Das belegt den Desktop-Pfad; die physische PICO-Freigabe bleibt separat.
-
-### Physische PICO-4-Freigabe
+## Physische PICO-4-Freigabe
 
 1. Über HTTPS mit `?profile=pico90&benchmark=xr-flight` öffnen und VR starten.
-2. In `window.__LANDSCAPE_BENCHMARK__.snapshot()` müssen `xr.frameRate === 90` und
-   `xr.targetRequestSucceeded === true` stehen.
-3. Nach 60 Sekunden Warm-up den Recorder zurücksetzen und zehn Minuten mit Kopfbewegungen laufen lassen.
-4. Akzeptanz: p99 höchstens 12 ms, höchstens 0,1 % Frames über 16,7 ms, keine drei Misses in Folge,
-   höchstens 40 Calls, höchstens 0,8 M Dreiecke und bis zum Ende bestätigte 90 Hz. Der Dreiecksdeckel
-   ist ein Profilbudget; die 90-Hz- und Framezeit-Grenzen entscheiden auf dem Headset.
-5. Parallel einen Perfetto-Trace für einen Waldkern und mehrere schnelle Chunk-Wechsel aufzeichnen.
-6. Zehnmal VR betreten und verlassen; es dürfen keine Shader-, Naht-, Atlas- oder Lifecycle-Fehler auftreten.
+2. `xr.frameRate === 90` und `xr.targetRequestSucceeded === true` bestätigen.
+3. Nach 60 Sekunden Warm-up das Histogramm zurücksetzen und zehn Minuten mit Kopfbewegung messen.
+4. Akzeptanz: p99 höchstens 12 ms, höchstens 0,1 % über 16,7 ms, keine drei Misses in Folge,
+   höchstens 32 Calls und höchstens 0,8 M Dreiecke.
+5. Zehn XR-Ein-/Ausstiege ohne Shader-, Worker-, Naht- oder Lifecycle-Fehler durchführen.
 
-Wenn 90 Hz nicht gehalten werden, wird ohne Auto-Scaler zuerst der XR-Framebuffer auf 0,65 reduziert,
-dann der Grasradius auf 100 m und die Wiesen-Cluster auf 12 begrenzt, anschließend Tree-Dichte auf 0,55
-mit 400 m Far-LOD und zuletzt Schatten auf 60 m/512 px. Jeder Schritt wird isoliert erneut gemessen.
+Desktop-RAF ersetzt weder Stereo-, Thermal-, Komfort- noch Passthrough-Prüfung auf dem Headset.
+
+## Nächste Eskalationsstufen
+
+Nur bei gemessenem Engpass: Terrain zeilenweise vorbereiten, KTX2/Basis testen, GPU-Timer ergänzen oder
+regionale Batches abwägen. Regionale Manager, LOD-Crossfades, zusätzliche Render-Pässe und dynamische
+Qualitätsregler bleiben außerhalb des Kernpfads.
