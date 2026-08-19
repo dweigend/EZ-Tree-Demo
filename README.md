@@ -1,24 +1,24 @@
 # Endless Wilds
 
-Experimenteller WebGL2-Prototyp einer praktisch unendlichen, prozedural erzeugten Landschaft mit frei steuerbarem Flug, gestreamten Terrain-Chunks und instanzierter Vegetation aus lizenzierten Assets.
+Experimental WebGL2 prototype of a practically endless, procedurally generated landscape with freely controlled flight, streamed terrain chunks, and instanced vegetation made from licensed assets.
 
-## Start
+## Getting started
 
 ```bash
 bun install
 bun run dev
 ```
 
-Produktionsprüfung:
+Production checks:
 
 ```bash
 bun run check
 bun run build
 ```
 
-Die Sichtweite lässt sich beim Start validiert zwischen 720 und 1500 Metern setzen. Fog,
-Terrain-Fenster und Vegetations-LOD werden gemeinsam daraus abgeleitet. `relief` skaliert
-die großen Hügel und Täler zwischen `0.7` und `1.4`:
+The view distance can be set to a validated value between 720 and 1500 metres at startup. Fog,
+the terrain window, and vegetation LOD are derived from it together. `relief` scales the large
+hills and valleys between `0.7` and `1.4`:
 
 ```text
 http://localhost:5173/?distance=900
@@ -26,63 +26,63 @@ http://localhost:5173/?distance=1200&fog=0.0014
 http://localhost:5173/?distance=900&relief=1.25
 ```
 
-Zwei unveränderliche Startprofile halten die Qualitätsentscheidung vorhersehbar. Das PICO-Profil
-aktiviert zusätzlich den minimalen WebXR-Einstieg und fordert auf unterstützten Geräten 90 Hz an:
+Two immutable startup profiles keep the quality decision predictable. The PICO profile also
+enables the minimal WebXR entry point and requests 90 Hz on supported devices:
 
 ```text
 http://localhost:5173/?profile=desktop
 https://<device-reachable-host>/?profile=pico90
 ```
 
-Reproduzierbare Flugmessungen laufen ohne Pointer-Lock über `benchmark=desktop-flight` oder
-`benchmark=xr-flight`. Messwerte stehen unter `window.__LANDSCAPE_BENCHMARK__` bereit. Der Flug läuft
-mit 320 m/s. `variantStress=1` verkürzt ausschließlich für Tests das Worker-Intervall auf zwei Sekunden.
+Reproducible flight measurements run without Pointer Lock via `benchmark=desktop-flight` or
+`benchmark=xr-flight`. Measurements are exposed through `window.__LANDSCAPE_BENCHMARK__`. Flight runs
+at 320 m/s. `variantStress=1` shortens the worker interval to two seconds for tests only.
 
-## Steuerung
+## Controls
 
-- Klick: Pointer Lock
-- WASD: vorwärts, rückwärts und seitwärts
-- Maus: Blickrichtung
-- Space / Shift: steigen / sinken
-- Mausrad: Fluggeschwindigkeit
-- Escape: Pointer Lock verlassen
+- Click: Pointer Lock
+- WASD: forward, backward, and sideways movement
+- Mouse: look direction
+- Space / Shift: ascend / descend
+- Mouse wheel: flight speed
+- Escape: release Pointer Lock
 
-## Architektur
+## Architecture
 
-- `terrain/`: kontinuierliches Höhenfeld, recycelte Chunks und acht weich zonierte Atlas-Materialien
-- `ecology/`: sechs gemeinsame, kontinuierliche Zonenfelder ohne systemspezifische Platzierungsregeln
-- `trees/`: alle 16 offiziellen EZ-Tree-Presets, vier Baumslots, Hecken, harte LODs und ein Variant-Worker
-- `vegetation/`: deterministische Steinverteilung in drei globalen Ground-Cover-Batches
-- `grass/`: organische Wiesenmaske, zusammengesetzte Patch-Cluster und größere Büschel in zwei Instancing-Batches
-- `wind/`: gemeinsamer Zeit-, Richtungs-, Böen- und Raumphasen-Vertrag für Bäume und beide Grasebenen
-- `controls/`: isolierte Pointer-Lock-Flugsteuerung
-- `rendering/`: WebGL2, Color Management, atmosphärischer Himmel, Fog und begrenzte Schatten
-- `world/`: explizite Frame-Reihenfolge und Lifecycle
+- `terrain/`: continuous height field, recycled chunks, and eight softly zoned atlas materials
+- `ecology/`: six shared continuous zone fields without system-specific placement rules
+- `trees/`: all 16 official EZ-Tree presets, four tree slots, hedges, hard LODs, and a variant worker
+- `vegetation/`: deterministic rock distribution in three global ground-cover batches
+- `grass/`: organic meadow mask, composed patch clusters, and larger tufts in two instancing batches
+- `wind/`: shared time, direction, gust, and spatial-phase contract for trees and both grass layers
+- `controls/`: isolated Pointer Lock flight controls
+- `rendering/`: WebGL2, color management, atmospheric sky, fog, and limited shadows
+- `world/`: explicit frame order and lifecycle
 
-Alle mehrfach vorkommenden Modellassets werden pro Geometrie-/Material-/LOD-Kombination in einem
-fest dimensionierten `InstancedMesh` gebündelt. Nur Matrix, Farbe und Windwerte variieren je Instanz.
-Terrain-Chunks bleiben recycelte Einzelmeshes, da jeder Chunk eigene Vertexhöhen und Bodengewichte trägt.
+All repeated model assets are grouped into a fixed-size `InstancedMesh` for each
+geometry/material/LOD combination. Only the matrix, color, and wind values vary per instance.
+Terrain chunks remain recycled individual meshes because each chunk carries its own vertex heights and ground weights.
 
-Wiese, Feuchtland, trockener und feuchter Laubwald, Nadelhochland und Felsrücken werden aus Höhe,
-Hang, Feuchte und Woodland weich gewichtet. Die Gewichte entstehen nur bei einer Chunk-Zuweisung.
-Der Shader mischt kontinuierliche, aus den acht Texturen abgeleitete Makrofarben mit einem neutralen
-Albedo-Mikrodetail und liest Normalen/Roughness nur aus der dominanten zonengerechten Surface-Zelle.
-So bleiben Übergänge ohne Top-N-Konturen bei weiterhin je einem Albedo- und Surface-Sample.
+Meadow, wetlands, dry and wet deciduous forest, conifer uplands, and rocky ridges are softly weighted
+from elevation, slope, moisture, and woodland. The weights are computed only when a chunk is assigned.
+The shader blends continuous macro colors derived from the eight textures with neutral albedo microdetail
+and reads normals/roughness only from the dominant zone-appropriate surface cell.
+This keeps transitions free of top-N contours while still using one albedo and one surface sample each.
 
-## Terrain-Materialien bauen
+## Building terrain materials
 
-Die aktive Palette nutzt acht lokale Poly-Haven-CC0-Materialien einschließlich Forest Ground 03 für
-Nadelboden. Quellen, Autoren, Kachelung und
-Download-URLs stehen in `assets/source/landscape/terrain-materials/terrain-textures.config.json`. ImageMagick packt daraus
-einen gemeinsamen 1536²-Terrain-Atlas für Desktop und PICO:
+The active palette uses eight local Poly Haven CC0 materials, including Forest Ground 03 for
+conifer ground. Sources, authors, tiling, and download URLs are listed in
+`assets/source/landscape/terrain-materials/terrain-textures.config.json`. ImageMagick packs them into
+a shared 1536² terrain atlas for desktop and PICO:
 
 ```bash
 bun run assets:all
 ```
 
-`assets:all` und `assets:atlas` bauen ausschließlich aus den eingecheckten Quelldateien und benötigen
-keinen Netz- oder API-Zugriff. Die bisherigen GPT-/PATINA-Skripte bleiben als getrennte Experimente
-verfügbar, sind aber nicht Teil des aktiven Runtime-Builds.
+`assets:all` and `assets:atlas` build exclusively from the checked-in source files and require no
+network or API access. The previous GPT/PATINA scripts remain available as separate experiments,
+but are not part of the active runtime build.
 
 ## Tests
 
@@ -93,25 +93,25 @@ bun run build
 bun run test:browser
 ```
 
-Der Browser-Test prüft statischen dichten Wald, einen 12-Sekunden-Flug bei 320 m/s, Worker-Stress und
-die PICO-Geometriebudgets.
-Die physische PICO-90-Freigabe bleibt ein separater Hardware-Test gemäß `docs/PERFORMANCE.md`.
+The browser test checks static dense forest, a 12-second flight at 320 m/s, worker stress, and
+the PICO geometry budgets.
+Physical PICO-90 approval remains a separate hardware test as described in `docs/PERFORMANCE.md`.
 
-Nach dem Start erzeugt genau ein Web Worker alle 30 Sekunden auf Desktop beziehungsweise 60 Sekunden
-auf PICO eine neue, topologisch begrenzte Presetvariante. Die Hauptszene übernimmt nur transferierte
-Typed Arrays und tauscht Nahgeometrie erst aus, wenn der betroffene Slot im vorherigen Fenster unsichtbar
-war. Es gibt keinen synchronen Fallback. Terrain-Ränder verschwinden in abgestimmtem Fog und Himmel;
-Wald- und Ground-Cover-Daten werden vor Chunk-Wechseln in Blickrichtung priorisiert.
+After startup, exactly one Web Worker generates a new, topologically bounded preset variant every
+30 seconds on desktop and every 60 seconds on PICO. The main scene accepts only transferred Typed Arrays
+and replaces near geometry only after the affected slot was invisible in the previous window. There is
+no synchronous fallback. Terrain edges disappear into coordinated fog and sky; forest and ground-cover
+data are prioritized in the direction of travel before chunk changes.
 
-## Abhängigkeiten
+## Dependencies
 
 - Three.js
 - [EZ-Tree](https://github.com/dgreenheck/ez-tree), MIT License, Daniel Greenheck
-- [Poly Pizza](https://poly.pizza/), Grass Patch und Tuft of grass (CC BY 3.0) sowie drei Quaternius-Rocks (CC0 1.0)
+- [Poly Pizza](https://poly.pizza/), Grass Patch and Tuft of grass (CC BY 3.0), plus three Quaternius rocks (CC0 1.0)
 
-Vegetations-, Stein- und Bodenassets werden lokal ausgeliefert. Herkunft und Lizenzen sind unter
-[`public/assets/ATTRIBUTION.md`](public/assets/ATTRIBUTION.md) dokumentiert.
+Vegetation, rock, and ground assets are served locally. Their sources and licenses are documented in
+[`public/assets/ATTRIBUTION.md`](public/assets/ATTRIBUTION.md).
 
-Gemessene Budgets und priorisierte nächste Optimierungen stehen in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
-Der aktuelle Übergabestand, Performance-Invarianten und bekannte Grenzen stehen in
+Measured budgets and prioritized next optimizations are listed in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+The current handoff state, performance invariants, and known limitations are documented in
 [`docs/HANDOFF.md`](docs/HANDOFF.md).
