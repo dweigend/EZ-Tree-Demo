@@ -10,6 +10,7 @@ import type { WindUniforms } from '../wind/wind-field';
 import { createBranchMaterial, createLeafMaterial } from './tree-materials';
 import {
   createVariedTreePreset,
+  HEDGE_TEMPLATES,
   TREE_TEMPLATES,
   type TreeSpecies,
   type TreeTemplate,
@@ -23,6 +24,7 @@ export interface TreeGeometryPair {
 }
 
 export interface TreeVariant {
+  readonly presetId: TreeTemplate['id'];
   readonly species: TreeSpecies;
   readonly lods: Readonly<Record<TreeLod, TreeGeometryPair>>;
   readonly branchMaterial: MeshPhongMaterial;
@@ -34,6 +36,25 @@ export function createTreeVariants(wind: WindUniforms, seed: number): TreeVarian
   return TREE_TEMPLATES.map((template, index) => createVariant(template, variantSeed(seed, index), wind));
 }
 
+export function createHedgeVariant(wind: WindUniforms, seed: number): TreeVariant {
+  const template = HEDGE_TEMPLATES[0];
+  if (!template) throw new Error('Hedge generation requires at least one preset.');
+  const variant = createVariant(template, variantSeed(seed, 0), wind);
+  const near = {
+    branches: createDistanceTrunk(6),
+    leaves: thinLeaves(inflateLeafCards(variant.lods.near.leaves, 1.4), 6),
+  };
+  const far = {
+    branches: createDistanceTrunk(4),
+    leaves: thinLeaves(inflateLeafCards(variant.lods.near.leaves, 2.8), 40),
+  };
+  variant.lods.near.branches.dispose();
+  variant.lods.near.leaves.dispose();
+  variant.lods.far.branches.dispose();
+  variant.lods.far.leaves.dispose();
+  return { ...variant, lods: { ...variant.lods, near, far } };
+}
+
 function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms): TreeVariant {
   const options = createVariedTreePreset(template, seed);
   // EZ-Tree's runtime accepts preset data, but 1.1.0 types require its mutable TreeOptions class.
@@ -43,6 +64,7 @@ function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms)
   const branchSource = requirePhongMaterial(tree.branchesMesh.material);
   const leafSource = requirePhongMaterial(tree.leavesMesh.material);
   const variant = {
+    presetId: template.id,
     species: template.species,
     height: template.height,
     branchMaterial: createBranchMaterial(branchSource),

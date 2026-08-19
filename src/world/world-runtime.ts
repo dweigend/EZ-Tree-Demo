@@ -17,9 +17,10 @@ import { BenchmarkFlight } from '../performance/benchmark-flight';
 import { FrameHistogram } from '../performance/frame-histogram';
 import { HeightField } from '../core/height-field';
 import { TerrainSystem } from '../terrain/terrain-system';
-import { createTreeVariants } from '../trees/tree-factory';
+import { createHedgeVariant, createTreeVariants } from '../trees/tree-factory';
 import { TreeSystem } from '../trees/tree-system';
 import { ForestDistribution } from '../trees/forest-distribution';
+import { HedgeDistribution } from '../trees/hedge-distribution';
 import { GroundCoverDistribution } from '../vegetation/ground-cover-distribution';
 import { GroundCoverSystem } from '../vegetation/ground-cover-system';
 import { WindField } from '../wind/wind-field';
@@ -31,6 +32,7 @@ export interface LandscapeDiagnostics {
   drawCalls: number;
   triangles: number;
   trees: number;
+  hedges: number;
   grassPatches: number;
   grassTufts: number;
   rocks: number;
@@ -89,8 +91,10 @@ export class WorldRuntime {
       grassTuft: assets.grassTuft,
     });
     const variants = createTreeVariants(this.wind.uniforms, hashString(`${WORLD_SEED}:tree-templates`));
+    const hedgeVariant = createHedgeVariant(this.wind.uniforms, hashString(`${WORLD_SEED}:hedge-template`));
     const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`), variants);
-    this.trees = new TreeSystem(variants, forest);
+    const hedges = new HedgeDistribution(this.heightField, hashString(`${WORLD_SEED}:hedges`));
+    this.trees = new TreeSystem({ variants, forest, hedgeVariant, hedges });
     const groundCoverDistribution = new GroundCoverDistribution(this.heightField, hashString(`${WORLD_SEED}:ground-cover`));
     this.groundCover = new GroundCoverSystem(assets, groundCoverDistribution);
     this.scene.add(this.terrain.group, this.trees.group, this.grass.group, this.groundCover.group);
@@ -214,6 +218,7 @@ export class WorldRuntime {
       drawCalls: info.render.calls,
       triangles: info.render.triangles,
       trees: this.trees.visibleTreeCount,
+      hedges: this.trees.visibleHedgeCount,
       grassPatches: this.grass.visiblePatchCount,
       grassTufts: this.grass.visibleTuftCount,
       rocks: this.groundCover.visibleRockCount,
@@ -256,6 +261,7 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
     drawCalls: 0,
     triangles: 0,
     trees: 0,
+    hedges: 0,
     grassPatches: 0,
     grassTufts: 0,
     rocks: 0,
@@ -273,5 +279,5 @@ function createInitialDiagnostics(): LandscapeDiagnostics {
 
 function formatDiagnostics(value: LandscapeDiagnostics): string {
   const triangles = Math.round(value.triangles / 1_000);
-  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.grassPatches} meadows · ${value.grassTufts} tufts · ${value.rocks} rocks · ${value.activeChunks}/${value.detailedChunks} chunks · ${value.viewDistance} m · r${value.relief.toFixed(2)}`;
+  return `${value.fps} FPS · ${value.frameTimeMs}/${value.peakFrameTimeMs} ms · ${value.drawCalls} calls · ${triangles}k tris\n${value.trees} trees · ${value.hedges} hedges · ${value.grassPatches} meadows · ${value.grassTufts} tufts · ${value.rocks} rocks · ${value.activeChunks}/${value.detailedChunks} chunks · ${value.viewDistance} m · r${value.relief.toFixed(2)}`;
 }

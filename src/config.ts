@@ -37,7 +37,7 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
     terrainSegments: 32,
     treeBatchCapacity: 700,
     treeDensity: 1,
-    treeLod: [100, 300, 720],
+    treeLod: [85, 300, 720],
     grassRadius: 200,
     meadowPatchCapacity: 60,
     grassTuftCapacity: 220,
@@ -56,7 +56,7 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
     terrainSegments: 24,
     treeBatchCapacity: 480,
     treeDensity: 0.85,
-    treeLod: [60, 180, 400],
+    treeLod: [45, 180, 400],
     grassRadius: 120,
     meadowPatchCapacity: 16,
     grassTuftCapacity: 90,
@@ -108,6 +108,9 @@ export const VEGETATION = {
   rockBatchCapacity: QUALITY_PROFILE.name === 'pico90' ? 420 : 600,
   rockSpacing: 16,
   rockDistance: QUALITY_PROFILE.rockDistance,
+  hedgeBatchCapacity: QUALITY_PROFILE.name === 'pico90' ? 180 : 420,
+  hedgeNearDistance: QUALITY_PROFILE.name === 'pico90' ? 35 : 55,
+  hedgeFarDistance: QUALITY_PROFILE.name === 'pico90' ? 260 : 480,
   leafShadows: QUALITY_PROFILE.leafShadows,
 } as const;
 
