@@ -22,6 +22,7 @@ import trellis from './presets/trellis.json';
 import { hashCoordinates, signedRandom } from '../core/random';
 
 export type TreeSpecies = 'ash' | 'aspen' | 'oak' | 'pine';
+export type BarkTextureId = 'Bark001' | 'Bark002' | 'Bark003';
 export type TreePresetKind = 'tree' | 'hedge';
 export type TreePresetSize = 'small' | 'medium' | 'large' | 'shrub';
 export type TreeSize = Exclude<TreePresetSize, 'shrub'>;
@@ -48,7 +49,13 @@ type BranchLevel = '0' | '1' | '2' | '3';
 export interface TreePresetData {
   seed: number;
   type: string;
-  bark: Record<string, unknown>;
+  bark: {
+    type: BarkTextureId;
+    tint: number;
+    flatShading: boolean;
+    textured: boolean;
+    textureScale: { x: number; y: number };
+  };
   branch: {
     angle: Partial<Record<BranchLevel, number>>;
     children: Partial<Record<BranchLevel, number>>;
@@ -59,8 +66,10 @@ export interface TreePresetData {
     [key: string]: unknown;
   };
   leaves: {
+    type: TreeSpecies;
     size: number;
     count: number;
+    roundedNormals?: boolean;
     [key: string]: unknown;
   };
   trellis: {

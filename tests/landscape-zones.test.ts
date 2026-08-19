@@ -37,11 +37,11 @@ describe('landscape zone catalog', () => {
     expect(getPopulationDensityPerHectare(meadow, 'rocks')).toBe(3);
     expect(getHedgeRowMetersPerHectare(meadow)).toBe(20);
     expect(writeTerrainCoverage(meadow, createTerrainCoverage())).toEqual({
-      meadow: 0.72,
+      meadow: 0.92,
       mud: 0,
       dryForest: 0,
       mossForest: 0,
-      forest: 0.28,
+      forest: 0.08,
       pineForest: 0,
       rock: 0,
     });

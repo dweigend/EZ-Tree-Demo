@@ -1,5 +1,5 @@
 /**
- * Renders fixed-capacity instanced trees and hedges with shared distance LODs.
+ * Renders fixed-capacity instanced trees and hedges with template-faithful EZ-Tree LODs.
  * Streaming rebuilds only instance prefixes; no render object or placement is allocated per frame.
  */
 
@@ -13,7 +13,7 @@ import {
 import { ChunkPrefetchQueue, getChunkIndex, getChunkViewWindow, type HorizontalDirection } from '../world/chunk-coordinates';
 import type { ForestDistribution, TreePlacement } from './forest-distribution';
 import type { HedgeDistribution, HedgePlacement } from './hedge-distribution';
-import type { TreeLod, TreeVariant } from './tree-factory';
+import type { TreeGeometryPair, TreeLod, TreeVariant } from './tree-factory';
 import type { GeneratedVariantUpdate } from './tree-variant-generator';
 import type { TreePresetId, TreeSpecies } from './tree-templates';
 import type { TreeVariantSlot } from './tree-variant-contract';
@@ -23,11 +23,6 @@ interface TreeBatch {
   readonly leaves: InstancedMesh;
   readonly phase: InstancedBufferAttribute;
   readonly strength: InstancedBufferAttribute;
-  count: number;
-}
-
-interface BranchBatch {
-  readonly mesh: InstancedMesh;
   count: number;
 }
 
@@ -44,23 +39,23 @@ interface PositionedPlacement {
 export interface TreeSystemOptions {
   readonly variants: readonly TreeVariant[];
   readonly forest: ForestDistribution;
-  readonly hedgeVariant: TreeVariant;
+  readonly hedgeVariants: readonly TreeVariant[];
   readonly hedges: HedgeDistribution;
 }
 
 const LODS: readonly TreeLod[] = ['near', 'middle', 'far'];
-const SHARED_DISTANCE_VARIANT_INDEX = 1;
+const HEDGE_LODS: readonly TreeLod[] = ['near', 'far'];
 const VIEW_CONE_COSINE = 0;
 const LEAF_COLORS: Readonly<Record<TreeSpecies, readonly [Color, Color]>> = {
-  ash: [new Color('#b9d39f'), new Color('#e4e7a8')],
-  aspen: [new Color('#c9dcaa'), new Color('#eff0b4')],
-  oak: [new Color('#bed09b'), new Color('#e1d39d')],
-  pine: [new Color('#b2c8a6'), new Color('#d8d6a2')],
+  ash: [new Color('#96bd7f'), new Color('#c5d995')],
+  aspen: [new Color('#a8c984'), new Color('#d4df9d')],
+  oak: [new Color('#88b06e'), new Color('#b3c982')],
+  pine: [new Color('#789a69'), new Color('#9cb27a')],
 };
-const HEDGE_DARK = new Color('#75975f');
-const HEDGE_LIGHT = new Color('#b1bc76');
-const BARK_DARK = new Color('#d2c7b9');
-const BARK_LIGHT = new Color('#f6e8d2');
+const HEDGE_DARK = new Color('#c4d7b8');
+const HEDGE_LIGHT = new Color('#eef0c9');
+const BARK_DARK = new Color('#e8e0d6');
+const BARK_LIGHT = new Color('#fffaf0');
 
 export class TreeSystem {
   public readonly group = new Object3D();
@@ -69,17 +64,17 @@ export class TreeSystem {
   public activeChunkCount = 0;
   private readonly variants: readonly TreeVariant[];
   private readonly forest: ForestDistribution;
-  private readonly hedgeVariant: TreeVariant;
+  private readonly hedgeVariants: readonly TreeVariant[];
   private readonly hedges: HedgeDistribution;
   private readonly treeBatches: TreeBatch[][];
-  private readonly hedgeBatches: readonly [TreeBatch, TreeBatch];
-  private readonly sharedNearBranches: BranchBatch;
+  private readonly hedgeBatches: TreeBatch[][];
   private readonly presetIndices: ReadonlyMap<TreePresetId, number>;
+  private readonly hedgePresetIndices: ReadonlyMap<TreePresetId, number>;
   private readonly activeHeights: number[];
   private readonly activePresetIds: string[];
   private readonly stagedVariants = new Map<TreeVariantSlot, GeneratedVariantUpdate>();
-  private activeHedgeHeight: number;
-  private activeHedgePresetId: string;
+  private readonly activeHedgeHeights: number[];
+  private readonly activeHedgePresetIds: string[];
   private readonly transform = new Matrix4();
   private readonly rotation = new Quaternion();
   private readonly position = new Vector3();
@@ -91,26 +86,23 @@ export class TreeSystem {
   public constructor(options: TreeSystemOptions) {
     this.variants = options.variants;
     this.forest = options.forest;
-    this.hedgeVariant = options.hedgeVariant;
+    this.hedgeVariants = options.hedgeVariants;
     this.hedges = options.hedges;
     this.presetIndices = new Map(this.variants.map((variant, index) => [variant.presetId, index]));
+    this.hedgePresetIndices = new Map(this.hedgeVariants.map((variant, index) => [variant.presetId, index]));
     this.activeHeights = this.variants.map((variant) => variant.height);
     this.activePresetIds = this.variants.map((variant) => variant.presetId);
-    this.activeHedgeHeight = this.hedgeVariant.height;
-    this.activeHedgePresetId = this.hedgeVariant.presetId;
+    this.activeHedgeHeights = this.hedgeVariants.map((variant) => variant.height);
+    this.activeHedgePresetIds = this.hedgeVariants.map((variant) => variant.presetId);
     this.treeBatches = this.variants.map((variant) => LODS.map((lod) => this.createBatch(variant, lod, VEGETATION.treeBatchCapacity)));
-    this.sharedNearBranches = this.createSharedNearBranches();
-    for (const batches of this.treeBatches) batches[0]!.branches.visible = false;
-    this.hedgeBatches = [
-      this.createBatch(this.hedgeVariant, 'near', VEGETATION.hedgeBatchCapacity),
-      this.createBatch(this.hedgeVariant, 'far', VEGETATION.hedgeBatchCapacity),
-    ];
-    for (const batch of this.hedgeBatches) batch.branches.visible = false;
+    this.hedgeBatches = this.hedgeVariants.map((variant) => {
+      return HEDGE_LODS.map((lod) => this.createBatch(variant, lod, VEGETATION.hedgeBatchCapacity));
+    });
   }
 
   public rebuild(cameraPosition: Vector3, viewDirection: HorizontalDirection): void {
-    this.applyStagedVariants();
     this.resetBatches();
+    this.applyStagedVariants();
     this.fillStreamingWindow(cameraPosition, viewDirection);
     this.finaliseBatches();
   }
@@ -123,22 +115,23 @@ export class TreeSystem {
   }
 
   public stageVariant(update: GeneratedVariantUpdate): void {
-    this.stagedVariants.get(update.slot)?.leaves.dispose();
+    const previous = this.stagedVariants.get(update.slot);
+    if (previous) this.disposeLods(previous.lods);
     this.stagedVariants.set(update.slot, update);
   }
 
   public get activeVariantNames(): string {
-    return [...this.activePresetIds, `hedge:${this.activeHedgePresetId}`].join(',');
+    return [...this.activePresetIds, ...this.activeHedgePresetIds.map((id) => `hedge:${id}`)].join(',');
   }
 
   public dispose(): void {
     for (const batches of this.treeBatches) this.disposeBatches(batches);
-    this.disposeBatches(this.hedgeBatches);
-    for (const variant of [...this.variants, this.hedgeVariant]) {
+    for (const batches of this.hedgeBatches) this.disposeBatches(batches);
+    for (const variant of [...this.variants, ...this.hedgeVariants]) {
       variant.branchMaterial.dispose();
       variant.leafMaterial.dispose();
     }
-    for (const update of this.stagedVariants.values()) update.leaves.dispose();
+    for (const update of this.stagedVariants.values()) this.disposeLods(update.lods);
     this.stagedVariants.clear();
     this.group.clear();
   }
@@ -165,12 +158,10 @@ export class TreeSystem {
     const variant = this.variants[placement.variant];
     const lodIndex = this.getTreeLodIndex(distance);
     if (!variant || lodIndex === null) return;
-    const batchIndex = lodIndex === 0 ? placement.variant : SHARED_DISTANCE_VARIANT_INDEX;
-    const batch = this.treeBatches[batchIndex]?.[lodIndex];
+    const batch = this.treeBatches[placement.variant]?.[lodIndex];
     if (!batch || batch.count >= VEGETATION.treeBatchCapacity) return;
     const height = this.activeHeights[placement.variant] ?? variant.height;
     this.writeTreeInstance(batch, variant, placement, height);
-    if (lodIndex === 0) this.writeSharedNearBranch();
     batch.count += 1;
     this.visibleTreeCount += 1;
   }
@@ -179,9 +170,9 @@ export class TreeSystem {
     const distance = getDistance(placement, renderWindow.position);
     if (!this.isInRenderWindow(placement, renderWindow, distance)) return;
     const lodIndex = distance < VEGETATION.hedgeNearDistance ? 0 : 1;
-    const batch = distance < VEGETATION.hedgeFarDistance ? this.hedgeBatches[lodIndex] : undefined;
+    const batch = distance < VEGETATION.hedgeFarDistance ? this.hedgeBatches[placement.variant]?.[lodIndex] : undefined;
     if (!batch || batch.count >= VEGETATION.hedgeBatchCapacity) return;
-    this.writeHedgeInstance(batch, placement);
+    this.writeHedgeInstance(batch, placement, this.activeHedgeHeights[placement.variant] ?? 1);
     batch.count += 1;
     this.visibleHedgeCount += 1;
   }
@@ -212,8 +203,8 @@ export class TreeSystem {
     this.writeTreeColors(batch, variant.species, placement.tint);
   }
 
-  private writeHedgeInstance(batch: TreeBatch, placement: HedgePlacement): void {
-    const worldHeight = this.activeHedgeHeight * placement.scale;
+  private writeHedgeInstance(batch: TreeBatch, placement: HedgePlacement, activeHeight: number): void {
+    const worldHeight = activeHeight * placement.scale;
     this.writeTransform(batch, placement, worldHeight, placement.widthScale, placement.depthScale, 0.04);
     this.writeWind(batch, placement.windPhase, placement.windStrength);
     const index = batch.count;
@@ -252,14 +243,6 @@ export class TreeSystem {
     batch.branches.setColorAt(batch.count, this.barkColor);
   }
 
-  private writeSharedNearBranch(): void {
-    const batch = this.sharedNearBranches;
-    if (batch.count >= VEGETATION.treeBatchCapacity) return;
-    batch.mesh.setMatrixAt(batch.count, this.transform);
-    batch.mesh.setColorAt(batch.count, this.barkColor);
-    batch.count += 1;
-  }
-
   private getTreeLodIndex(distance: number): number | null {
     if (distance < VEGETATION.nearDistance) return 0;
     if (distance < VEGETATION.middleDistance) return 1;
@@ -280,57 +263,65 @@ export class TreeSystem {
     return { branches, leaves, phase, strength, count: 0 };
   }
 
-  private createSharedNearBranches(): BranchBatch {
-    const variant = this.variants[SHARED_DISTANCE_VARIANT_INDEX] ?? this.variants[0];
-    if (!variant) throw new Error('Tree rendering requires at least one variant.');
-    const mesh = createDynamicInstancedMesh(
-      variant.lods.near.branches,
-      variant.branchMaterial,
-      VEGETATION.treeBatchCapacity,
-    );
-    mesh.castShadow = true;
-    this.group.add(mesh);
-    return { mesh, count: 0 };
-  }
-
   private applyStagedVariants(): void {
     for (const [slot, update] of this.stagedVariants) {
-      const variantIndex = slot === 'hedge' ? undefined : this.presetIndices.get(slot);
-      const batch = slot === 'hedge' ? this.hedgeBatches[0] : this.treeBatches[variantIndex ?? -1]?.[0];
-      if (!batch || batch.count > 0) continue;
-      update.leaves.setAttribute('aWindPhase', batch.phase);
-      update.leaves.setAttribute('aWindStrength', batch.strength);
-      batch.leaves.geometry.dispose();
-      batch.leaves.geometry = update.leaves;
-      this.activateStagedMetadata(slot, update);
+      const treeIndex = this.presetIndices.get(slot);
+      const hedgeIndex = this.hedgePresetIndices.get(slot);
+      if (treeIndex !== undefined) this.activateTreeVariant(treeIndex, update);
+      else if (hedgeIndex !== undefined) this.activateHedgeVariant(hedgeIndex, update);
+      else this.disposeLods(update.lods);
       this.stagedVariants.delete(slot);
     }
   }
 
-  private activateStagedMetadata(slot: TreeVariantSlot, update: GeneratedVariantUpdate): void {
-    if (slot === 'hedge') {
-      this.activeHedgeHeight = update.height;
-      this.activeHedgePresetId = update.presetId;
-      return;
-    }
-    const index = this.presetIndices.get(slot);
-    if (index === undefined) return;
+  private activateTreeVariant(index: number, update: GeneratedVariantUpdate): void {
+    const batches = this.treeBatches[index];
+    if (!batches) return this.disposeLods(update.lods);
+    this.replaceBatchLods(batches, update.lods, LODS);
     this.activeHeights[index] = update.height;
     this.activePresetIds[index] = update.presetId;
+  }
+
+  private activateHedgeVariant(index: number, update: GeneratedVariantUpdate): void {
+    const batches = this.hedgeBatches[index];
+    if (!batches) return this.disposeLods(update.lods);
+    this.replaceBatchLods(batches, update.lods, HEDGE_LODS);
+    update.lods.middle.branches.dispose();
+    update.lods.middle.leaves.dispose();
+    this.activeHedgeHeights[index] = update.height;
+    this.activeHedgePresetIds[index] = update.presetId;
+  }
+
+  private replaceBatchLods(
+    batches: readonly TreeBatch[],
+    lods: Readonly<Record<TreeLod, TreeGeometryPair>>,
+    lodOrder: readonly TreeLod[],
+  ): void {
+    lodOrder.forEach((lod, index) => {
+      const batch = batches[index];
+      if (batch) this.replaceBatchGeometry(batch, lods[lod]);
+    });
+  }
+
+  private replaceBatchGeometry(batch: TreeBatch, geometry: TreeGeometryPair): void {
+    geometry.leaves.setAttribute('aWindPhase', batch.phase);
+    geometry.leaves.setAttribute('aWindStrength', batch.strength);
+    batch.branches.geometry.dispose();
+    batch.leaves.geometry.dispose();
+    batch.branches.geometry = geometry.branches;
+    batch.leaves.geometry = geometry.leaves;
   }
 
   private resetBatches(): void {
     this.visibleTreeCount = 0;
     this.visibleHedgeCount = 0;
-    this.sharedNearBranches.count = 0;
     for (const batches of this.treeBatches) for (const batch of batches) batch.count = 0;
-    for (const batch of this.hedgeBatches) batch.count = 0;
+    for (const batches of this.hedgeBatches) for (const batch of batches) batch.count = 0;
   }
 
   private finaliseBatches(): void {
     for (const batches of this.treeBatches) for (const batch of batches) this.finaliseBatch(batch);
-    for (const batch of this.hedgeBatches) this.finaliseBatch(batch);
-    finaliseInstancedMesh(this.sharedNearBranches.mesh, this.sharedNearBranches.count);
+    for (const batches of this.hedgeBatches) for (const batch of batches) this.finaliseBatch(batch);
   }
 
   private finaliseBatch(batch: TreeBatch): void {
@@ -342,6 +333,13 @@ export class TreeSystem {
     for (const batch of batches) {
       batch.branches.geometry.dispose();
       batch.leaves.geometry.dispose();
+    }
+  }
+
+  private disposeLods(lods: Readonly<Record<TreeLod, TreeGeometryPair>>): void {
+    for (const lod of LODS) {
+      lods[lod].branches.dispose();
+      lods[lod].leaves.dispose();
     }
   }
 }

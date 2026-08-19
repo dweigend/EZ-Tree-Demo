@@ -2,9 +2,9 @@
   "slots": [
     {
       "slot": "meadow",
-      "source": "sparse_grass",
-      "name": "Sparse Grass",
-      "author": "Amal Kumar"
+      "source": "leafy_grass",
+      "name": "Leafy Grass",
+      "author": "Charlotte Baglioni"
     },
     {
       "slot": "mud",
@@ -50,7 +50,7 @@
     }
   ],
   "tileMeters": [
-    14,
+    8,
     10,
     8,
     10,

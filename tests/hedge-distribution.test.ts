@@ -10,16 +10,17 @@ import { getTrailEnvelope } from '../src/ecology/landscape-ecology';
 import { HedgeDistribution, type HedgePlacement } from '../src/trees/hedge-distribution';
 
 const heightField = new HeightField(WORLD_SEED, 1);
-const distribution = new HedgeDistribution(heightField, hashString('hedge-test'));
+const distribution = new HedgeDistribution(heightField, hashString('hedge-test'), 4);
 
 describe('hedge distribution', () => {
-  test('is deterministic, bounded, and exclusively owned by its chunk', () => {
+  test('allows empty zones while remaining deterministic, bounded, and exclusively owned', () => {
     const first = distribution.getChunkPlacements(0, 0);
     const second = distribution.getChunkPlacements(0, 0);
     expect(second).toEqual(first);
-    expect(first.length).toBeWithin(1, 420);
+    expect(first.length).toBeLessThanOrEqual(420);
     for (const placement of first) {
       expect(isOwnedByChunk(placement, 0, 0)).toBeTrue();
+      expect(placement.variant).toBeWithin(0, 3);
       const slopeDegrees = heightField.getSlopeDegrees(placement.x, placement.z);
       expect(slopeDegrees).toBeLessThanOrEqual(20);
       expect(
@@ -31,6 +32,9 @@ describe('hedge distribution', () => {
         }),
       ).toBeLessThanOrEqual(0.08);
     }
+    const sampledCounts = collectChunks(-2, 2).map((placements) => placements.length);
+    expect(sampledCounts.some((count) => count === 0)).toBeTrue();
+    expect(sampledCounts.some((count) => count > 0)).toBeTrue();
   });
 
   test('continues macro rows across chunk borders without duplicate shrubs', () => {

@@ -1,37 +1,43 @@
 /**
- * Adapts EZ-Tree materials for instanced forests.
- * Bark stays static; leaf crowns receive the shared low-cost world-space wind field.
+ * Preserves EZ-Tree PBR maps and rounded canopy lighting while adapting leaves to instanced world wind.
+ * Material identity stays template-owned; this layer only adds instance colour and motion support.
  */
 
-import { MeshPhongMaterial } from 'three';
+import { MeshStandardMaterial, ShaderChunk } from 'three';
 import { WIND_INSTANCE_GLSL, WIND_WAVE_GLSL } from '../wind/shader-chunks';
 import { bindWindUniforms, type WindUniforms } from '../wind/wind-field';
 
-export function createBranchMaterial(source: MeshPhongMaterial): MeshPhongMaterial {
+export function createBranchMaterial(source: MeshStandardMaterial): MeshStandardMaterial {
   const material = source.clone();
-  material.color.set('#ffffff');
-  material.emissive.set('#4b3828');
-  material.emissiveIntensity = 0.18;
-  material.shininess = 2;
   material.vertexColors = true;
   return material;
 }
 
-export function createLeafMaterial(source: MeshPhongMaterial, wind: WindUniforms): MeshPhongMaterial {
+export function createLeafMaterial(
+  source: MeshStandardMaterial,
+  wind: WindUniforms,
+  roundedNormals: boolean,
+): MeshStandardMaterial {
   const material = source.clone();
-  material.color.set('#ffffff');
-  material.emissive.set('#486843');
-  material.emissiveIntensity = 0.28;
-  material.shininess = 1;
+  material.emissive.set('#385332');
+  material.emissiveIntensity = 0.16;
   material.alphaToCoverage = true;
   material.dithering = true;
   material.vertexColors = true;
   material.onBeforeCompile = (shader) => {
     bindWindUniforms(shader.uniforms, wind);
+    shader.uniforms.uCustomNormals = { value: roundedNormals };
     shader.vertexShader = `${WIND_INSTANCE_GLSL}\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', leafProjectionShader);
+    shader.fragmentShader = `uniform bool uCustomNormals;\n${shader.fragmentShader.replace(
+      '#include <normal_fragment_begin>',
+      ShaderChunk.normal_fragment_begin.replace(
+        'normal *= faceDirection;',
+        'if (!uCustomNormals) { normal *= faceDirection; }',
+      ),
+    )}`;
   };
-  material.customProgramCacheKey = () => 'endless-wilds-tree-leaf-v4';
+  material.customProgramCacheKey = () => `endless-wilds-ez-tree-leaf-v5-${roundedNormals}`;
   return material;
 }
 

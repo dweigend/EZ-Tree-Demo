@@ -11,14 +11,10 @@ courtesy to the authors and contributors at ambientcg.
 | `Bark001_1K-JPG/`   | https://ambientcg.com/view?id=Bark001   |
 | `Bark002_1K-JPG/`   | https://ambientcg.com/view?id=Bark002   |
 | `Bark003_1K-JPG/`   | https://ambientcg.com/view?id=Bark003   |
-| `Bark004_1K-JPG/`   | https://ambientcg.com/view?id=Bark004   |
-| `Bark006_1K-JPG/`   | https://ambientcg.com/view?id=Bark006   |
-| `Bark007_1K-JPG/`   | https://ambientcg.com/view?id=Bark007   |
-| `Bark008_1K-JPG/`   | https://ambientcg.com/view?id=Bark008   |
-| `Bark012_1K-JPG/`   | https://ambientcg.com/view?id=Bark012   |
-| `Bark013_1K-JPG/`   | https://ambientcg.com/view?id=Bark013   |
-| `Bark014_1K-JPG/`   | https://ambientcg.com/view?id=Bark014   |
-| `Bark015_1K-JPG/`   | https://ambientcg.com/view?id=Bark015   |
+
+Only Bark001, Bark002, and Bark003 are copied into this project because those are the three sets
+referenced by the 16 official presets. The other bark choices remain editor-only and are not loaded
+by the landscape runtime.
 
 The leaf textures in `leaves/` are bundled with the EZ-Tree demo app and are
 licensed under the project's own license (see repository LICENSE).

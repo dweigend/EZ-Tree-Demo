@@ -1,11 +1,11 @@
 /**
- * Schedules one low-frequency tree worker job at a time and stages successful near geometry for TreeSystem.
+ * Schedules one low-frequency tree worker job and stages complete EZ-Tree LOD geometry for TreeSystem.
  * Worker failures keep the current variants intact; generation never falls back to the main thread.
  */
 
 import { VARIANT_GENERATION } from '../config';
 import { hashCoordinates } from '../core/random';
-import { deserializeGeometry } from './tree-geometry';
+import { deserializeTreeLods, type TreeGeometryPair, type TreeLod } from './tree-geometry';
 import {
   createVariedTreePreset,
   TREE_PRESET_CATALOG,
@@ -23,7 +23,7 @@ export interface GeneratedVariantUpdate {
   readonly slot: TreeVariantSlot;
   readonly presetId: TreeTemplate['id'];
   readonly height: number;
-  readonly leaves: ReturnType<typeof deserializeGeometry>;
+  readonly lods: Readonly<Record<TreeLod, TreeGeometryPair>>;
 }
 
 export interface TreeVariantGeneratorDiagnostics {
@@ -95,6 +95,7 @@ export class TreeVariantGenerator {
       type: 'generate',
       requestId: this.requestId,
       slot: getTemplateSlot(template),
+      isHedge: template.kind === 'hedge',
       presetId: template.id,
       height: template.height,
       preset: createVariedTreePreset(template, seed),
@@ -118,7 +119,7 @@ export class TreeVariantGenerator {
       slot: response.slot,
       presetId: response.presetId,
       height: response.height,
-      leaves: deserializeGeometry(response.lods.near.leaves),
+      lods: deserializeTreeLods(response.lods),
     });
   }
 
@@ -131,7 +132,7 @@ export class TreeVariantGenerator {
 }
 
 function getTemplateSlot(template: TreeTemplate): TreeVariantSlot {
-  return template.kind === 'hedge' ? 'hedge' : template.id;
+  return template.id;
 }
 
 function requireTemplate(id: TreePresetId): TreeTemplate {

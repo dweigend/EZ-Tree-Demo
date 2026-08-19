@@ -13,14 +13,21 @@ The following files are copied from `src/app/public/` in the official repository
 - `terrain/grass.jpg`
 - `terrain/dirt_color.jpg`
 - `terrain/dirt_normal.jpg`
+- `trees/bark/Bark001_1K-JPG/`
+- `trees/bark/Bark002_1K-JPG/`
+- `trees/bark/Bark003_1K-JPG/`
+- `trees/leaves/ash.png`
+- `trees/leaves/aspen.png`
+- `trees/leaves/oak.png`
+- `trees/leaves/pine.png`
 
 EZ-Tree is Copyright (c) 2024 Daniel Greenheck and licensed under the MIT License. The complete
 license is included in `licenses/EZ-TREE-MIT.txt`. Texture provenance is documented in
 `licenses/EZ-TREE-TEXTURES.md`.
 
-Tree bark and leaf textures are consumed from the installed `@dgreenheck/ez-tree` package rather
-than duplicated here. Bark textures originate from ambientCG and are CC0; leaf textures are
-covered by the EZ-Tree project license.
+The official generator build from the same revision is pinned under `vendor/ez-tree/`, because the
+current website generator has not yet been published as a newer npm version. Bark textures originate
+from ambientCG and are CC0; leaf textures are covered by the EZ-Tree project license.
 
 ## Poly Pizza rock assets
 
@@ -46,7 +53,7 @@ wind deformation happen in code without producing derivative asset files.
 The source maps under `assets/source/terrain-materials/polyhaven/` and the derived atlases under
 `terrain/palette-desktop/` and `terrain/palette-pico/` use these Poly Haven assets:
 
-- [Sparse Grass](https://polyhaven.com/a/sparse_grass), Amal Kumar
+- [Leafy Grass](https://polyhaven.com/a/leafy_grass), Charlotte Baglioni
 - [Brown Mud 02](https://polyhaven.com/a/brown_mud_02), Rob Tuytel
 - [Dry Decay Leaves](https://polyhaven.com/a/dry_decay_leaves), Amal Kumar
 - [Forest Leaves 02](https://polyhaven.com/a/forest_leaves_02), Rob Tuytel

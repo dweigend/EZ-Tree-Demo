@@ -2,7 +2,7 @@
   "seed": 31343,
   "type": "evergreen",
   "bark": {
-    "type": "oak",
+    "type": "Bark001",
     "tint": 13552830,
     "flatShading": false,
     "textured": true,
@@ -29,7 +29,7 @@
         "y": 1,
         "z": 0
       },
-      "strength": -0.007
+      "strength": 0
     },
     "gnarliness": {
       "0": 0.05434782608695654,
@@ -94,4 +94,3 @@
     "enabled": false
   }
 }
-

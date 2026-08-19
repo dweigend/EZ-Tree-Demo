@@ -13,14 +13,16 @@ import {
   type LandscapeZoneWeights,
 } from './landscape-zones';
 
-const FLAT_SLOPE_FADE_DEGREES = [5, 32] as const;
-const ROCK_SLOPE_FADE_DEGREES = [10, 32] as const;
+const FLAT_SLOPE_FADE_DEGREES = [6, 36] as const;
+const ROCK_SLOPE_FADE_DEGREES = [18, 42] as const;
 const TRAIL_SLOPE_FADE_DEGREES = [10, 30] as const;
-const LOWLAND_HEIGHT_FADE_METERS = [35, 125] as const;
-const HIGHLAND_HEIGHT_FADE_METERS = [72, 190] as const;
-const WET_LOWLAND_FADE = [0.44, 0.78] as const;
-const FOREST_FADE = [0.38, 0.8] as const;
-const CONIFER_FOREST_FADE = [0.34, 0.72] as const;
+const LOWLAND_HEIGHT_FADE_METERS = [28, 105] as const;
+const HIGHLAND_HEIGHT_FADE_METERS = [48, 132] as const;
+const WET_LOWLAND_FADE = [0.54, 0.82] as const;
+const FOREST_FADE = [0.4, 0.58] as const;
+const MOIST_FOREST_FADE = [0.56, 0.72] as const;
+const CONIFER_HIGHLAND_FADE = [0.08, 0.5] as const;
+const ZONE_CONTRAST = 2.4;
 
 export interface LandscapeSurfaceSample {
   x: number;
@@ -62,14 +64,18 @@ export function writeLandscapeZoneWeights(
   const rockyRidge = getRockyRidgeAffinity(factors);
   const wetLowland = getWetLowlandAffinity(factors, rockyRidge);
   const forest = getForestAffinity(factors, rockyRidge);
-  const broadleaf = forest * (1 - factors.highland * 0.72) * (1 - wetLowland * 0.35);
+  const availableGround = (1 - rockyRidge) * (1 - wetLowland);
+  const coniferShare = getConiferShare(factors);
+  const broadleaf = forest * (1 - coniferShare) * availableGround;
+  const conifer = forest * coniferShare * availableGround;
+  const moistShare = smoothstep(factors.moisture, MOIST_FOREST_FADE);
 
-  target.rockyRidge = rockyRidge + 0.005;
-  target.wetLowland = wetLowland * (1 - rockyRidge * 0.7) + 0.005;
-  target.coniferHighland = getConiferAffinity(factors) + 0.005;
-  target.moistBroadleaf = broadleaf * factors.moisture + 0.005;
-  target.dryBroadleaf = broadleaf * (1 - factors.moisture) + 0.005;
-  target.meadow = getMeadowAffinity(factors, { forest, rockyRidge, wetLowland }) + 0.01;
+  target.rockyRidge = shapeZoneAffinity(rockyRidge);
+  target.wetLowland = shapeZoneAffinity(wetLowland * (1 - rockyRidge));
+  target.coniferHighland = shapeZoneAffinity(conifer);
+  target.moistBroadleaf = shapeZoneAffinity(broadleaf * moistShare);
+  target.dryBroadleaf = shapeZoneAffinity(broadleaf * (1 - moistShare));
+  target.meadow = shapeZoneAffinity(getMeadowAffinity(factors, { forest, rockyRidge, wetLowland }));
   return normaliseZones(target);
 }
 
@@ -110,9 +116,10 @@ function getEcologyFactors(heightField: HeightField, surface: LandscapeSurfaceSa
   };
 }
 
-/** Rocky ridges emerge from either steep slopes or exposed, comparatively dry highlands. */
+/** Rocky ridges emerge from steep slopes or genuinely exposed, unwooded highlands. */
 function getRockyRidgeAffinity(factors: EcologyFactors): number {
-  return Math.max(factors.slopeRock, factors.highland * (1 - factors.moisture * 0.42));
+  const exposedHighland = factors.highland * (1 - factors.woodland) * (0.55 + (1 - factors.moisture) * 0.45);
+  return Math.max(factors.slopeRock, exposedHighland);
 }
 
 /** Wet lowlands require moisture, low elevation, and terrain flat enough to retain water. */
@@ -123,18 +130,14 @@ function getWetLowlandAffinity(factors: EcologyFactors, rockyRidge: number): num
 
 /** Broad forest potential follows the shared woodland field and avoids exposed rock. */
 function getForestAffinity(factors: EcologyFactors, rockyRidge: number): number {
-  return smoothstep(factors.woodland, FOREST_FADE) * factors.flatness * (1 - rockyRidge * 0.8);
+  const terrainSuitability = 0.42 + factors.flatness * 0.58;
+  return smoothstep(factors.woodland, FOREST_FADE) * terrainSuitability * (1 - rockyRidge);
 }
 
-/** Conifers favour wooded highlands, modest slopes, and drier sites. */
-function getConiferAffinity(factors: EcologyFactors): number {
-  return (
-    smoothstep(factors.woodland, CONIFER_FOREST_FADE) *
-    factors.highland *
-    (0.35 + factors.flatness * 0.65) *
-    (1 - factors.slopeRock * 0.55) *
-    (0.58 + (1 - factors.moisture) * 0.42)
-  );
+/** Highland forest becomes coniferous without turning every high site into bare rock. */
+function getConiferShare(factors: EcologyFactors): number {
+  const elevation = smoothstep(factors.highland, CONIFER_HIGHLAND_FADE);
+  return elevation * (0.72 + (1 - factors.moisture) * 0.28);
 }
 
 /** Meadows fill flat, open land left by forests, wetlands, and exposed rock. */
@@ -190,6 +193,10 @@ function normaliseMaterials(weights: LandscapeMaterialWeights): LandscapeMateria
 
 function smoothstep(value: number, range: readonly [number, number]): number {
   return MathUtils.smoothstep(value, range[0], range[1]);
+}
+
+function shapeZoneAffinity(value: number): number {
+  return value ** ZONE_CONTRAST;
 }
 
 const materialZoneScratch = createLandscapeZoneWeights();

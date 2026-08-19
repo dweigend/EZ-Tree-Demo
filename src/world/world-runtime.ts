@@ -17,7 +17,7 @@ import { BenchmarkFlight } from '../performance/benchmark-flight';
 import { FrameHistogram } from '../performance/frame-histogram';
 import { HeightField } from '../core/height-field';
 import { TerrainSystem } from '../terrain/terrain-system';
-import { createHedgeVariant, createTreeVariants } from '../trees/tree-factory';
+import { createHedgeVariants, createTreeVariants } from '../trees/tree-factory';
 import { TreeSystem } from '../trees/tree-system';
 import { ForestDistribution } from '../trees/forest-distribution';
 import { HedgeDistribution } from '../trees/hedge-distribution';
@@ -96,11 +96,19 @@ export class WorldRuntime {
       meadowPatch: assets.meadowPatch,
       grassTuft: assets.grassTuft,
     });
-    const variants = createTreeVariants(this.wind.uniforms, hashString(`${WORLD_SEED}:tree-templates`));
-    const hedgeVariant = createHedgeVariant(this.wind.uniforms, hashString(`${WORLD_SEED}:hedge-template`));
+    const variants = createTreeVariants(
+      this.wind.uniforms,
+      hashString(`${WORLD_SEED}:tree-templates`),
+      assets.trees,
+    );
+    const hedgeVariants = createHedgeVariants(
+      this.wind.uniforms,
+      hashString(`${WORLD_SEED}:hedge-templates`),
+      assets.trees,
+    );
     const forest = new ForestDistribution(this.heightField, hashString(`${WORLD_SEED}:forest`), variants);
-    const hedges = new HedgeDistribution(this.heightField, hashString(`${WORLD_SEED}:hedges`));
-    this.trees = new TreeSystem({ variants, forest, hedgeVariant, hedges });
+    const hedges = new HedgeDistribution(this.heightField, hashString(`${WORLD_SEED}:hedges`), hedgeVariants.length);
+    this.trees = new TreeSystem({ variants, forest, hedgeVariants, hedges });
     this.variantGenerator = new TreeVariantGenerator(
       hashString(`${WORLD_SEED}:background-variants`),
       (update) => this.trees.stageVariant(update),
@@ -180,11 +188,12 @@ export class WorldRuntime {
   }
 
   private positionCamera(): void {
-    const startZ = 120;
-    const ground = this.heightField.getHeight(0, startZ);
-    this.camera.position.set(0, ground + 62, startZ);
-    const targetHeight = this.heightField.getHeight(0, -80) + 20;
-    this.camera.lookAt(new Vector3(0, targetHeight, -80));
+    const { startX, startZ, startAltitude } = LANDSCAPE_VIEW;
+    const ground = this.heightField.getHeight(startX, startZ);
+    const targetZ = startZ - 200;
+    const targetHeight = this.heightField.getHeight(startX, targetZ) + Math.min(20, startAltitude * 0.35);
+    this.camera.position.set(startX, ground + startAltitude, startZ);
+    this.camera.lookAt(new Vector3(startX, targetHeight, targetZ));
   }
 
   private refreshVegetation(chunkWindowChanged: boolean): boolean {

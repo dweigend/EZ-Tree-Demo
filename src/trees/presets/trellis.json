@@ -2,7 +2,7 @@
   "seed": 41563,
   "type": "deciduous",
   "bark": {
-    "type": "oak",
+    "type": "Bark001",
     "tint": 16777215,
     "flatShading": false,
     "textured": true,
@@ -110,4 +110,3 @@
     "color": 5519173
   }
 }
-

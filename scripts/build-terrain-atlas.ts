@@ -6,32 +6,23 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-
-interface MaterialSource {
-  readonly slot: string;
-  readonly asset: string;
-  readonly name: string;
-  readonly author: string;
-  readonly tileMeters: number;
-}
-
-interface MaterialManifest {
-  readonly license: string;
-  readonly licenseUrl: string;
-  readonly materials: readonly MaterialSource[];
-}
+import {
+  TERRAIN_TEXTURE_CONFIG,
+  type TerrainMaterialConfig,
+  type TerrainTextureConfig,
+} from '../src/terrain/terrain-texture-config';
 
 type AtlasMap = 'albedo' | 'surface';
 
 interface AtlasJob {
-  readonly materials: readonly MaterialSource[];
+  readonly materials: readonly TerrainMaterialConfig[];
   readonly map: AtlasMap;
   readonly atlasSize: number;
   readonly output: string;
 }
 
 interface CellJob {
-  readonly material: MaterialSource;
+  readonly material: TerrainMaterialConfig;
   readonly map: AtlasMap;
   readonly cellSize: number;
   readonly contentSize: number;
@@ -43,15 +34,14 @@ const ATLAS_PROFILES = { desktop: 3_072, pico90: 1_536 } as const;
 const repoRoot = path.resolve(import.meta.dir, '..');
 const sourceRoot = path.join(repoRoot, 'assets/source/terrain-materials/polyhaven');
 const runtimeRoot = path.join(repoRoot, 'public/assets/terrain');
-const manifest = await readManifest(path.join(repoRoot, 'assets/source/terrain-materials/polyhaven.json'));
 const tempRoot = await mkdtemp(path.join(tmpdir(), 'terrain-atlas-'));
 
 try {
-  await validateMaps(manifest.materials);
+  await validateMaps(TERRAIN_TEXTURE_CONFIG.materials);
   for (const [profile, atlasSize] of Object.entries(ATLAS_PROFILES)) {
-    await buildProfileAtlas(profile, atlasSize, manifest.materials);
+    await buildProfileAtlas(profile, atlasSize, TERRAIN_TEXTURE_CONFIG.materials);
   }
-  await writePaletteMetadata(manifest);
+  await writePaletteMetadata(TERRAIN_TEXTURE_CONFIG);
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
 }
@@ -59,7 +49,7 @@ try {
 async function buildProfileAtlas(
   profile: string,
   atlasSize: number,
-  materials: readonly MaterialSource[],
+  materials: readonly TerrainMaterialConfig[],
 ): Promise<void> {
   const profileRoot = path.join(runtimeRoot, profile === 'desktop' ? 'palette-desktop' : 'palette-pico');
   await mkdir(profileRoot, { recursive: true });
@@ -127,7 +117,7 @@ async function buildFillerCell(mapName: AtlasMap, cellSize: number): Promise<str
   return output;
 }
 
-async function writePaletteMetadata(source: MaterialManifest): Promise<void> {
+async function writePaletteMetadata(source: TerrainTextureConfig): Promise<void> {
   const metadata = {
     slots: source.materials.map(({ slot, asset, name, author }) => ({ slot, source: asset, name, author })),
     tileMeters: source.materials.map((material) => material.tileMeters),
@@ -141,7 +131,7 @@ async function writePaletteMetadata(source: MaterialManifest): Promise<void> {
   await Bun.write(path.join(runtimeRoot, 'palette.json'), `${JSON.stringify(metadata, null, 2)}\n`);
 }
 
-async function validateMaps(materials: readonly MaterialSource[]): Promise<void> {
+async function validateMaps(materials: readonly TerrainMaterialConfig[]): Promise<void> {
   if (materials.length !== 8) throw new Error('The terrain palette requires exactly eight Poly Haven materials.');
   for (const material of materials) {
     for (const mapName of ['basecolor.jpg', 'normal.jpg', 'roughness.jpg']) {
@@ -159,8 +149,4 @@ async function runMagick(arguments_: readonly string[]): Promise<string> {
   ]);
   if (exitCode !== 0) throw new Error(`ImageMagick failed: ${stderr.trim()}`);
   return stdout;
-}
-
-async function readManifest(file: string): Promise<MaterialManifest> {
-  return (await Bun.file(file).json()) as MaterialManifest;
 }

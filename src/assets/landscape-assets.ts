@@ -17,6 +17,14 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { QUALITY_PROFILE } from '../config';
+import { TERRAIN_TILE_METERS } from '../terrain/terrain-texture-config';
+import {
+  getRequiredBarkTextureRequests,
+  type TreeBarkMaps,
+  type TreeBarkTextureRequest,
+  type TreeTextureAssets,
+} from '../trees/tree-textures';
+import type { TreeSpecies } from '../trees/tree-templates';
 
 export interface InstancedModelAsset {
   readonly geometry: BufferGeometry;
@@ -34,6 +42,7 @@ export type TerrainLayerValues = readonly [number, number, number, number, numbe
 
 export interface LandscapeAssets {
   readonly ground: GroundTextureAssets;
+  readonly trees: TreeTextureAssets;
   readonly meadowPatch: InstancedModelAsset;
   readonly grassTuft: InstancedModelAsset;
   readonly rocks: readonly [InstancedModelAsset, InstancedModelAsset, InstancedModelAsset];
@@ -47,20 +56,22 @@ interface ModelPart {
 const VEGETATION_PATH = '/assets/vegetation';
 const ROCK_PATH = '/assets/rocks';
 const TERRAIN_PATH = '/assets/terrain';
+const TREE_PATH = '/assets/trees';
 
 export async function loadLandscapeAssets(): Promise<LandscapeAssets> {
   const dracoLoader = new DRACOLoader().setDecoderPath('/assets/draco/');
   const modelLoader = new GLTFLoader().setDRACOLoader(dracoLoader);
   try {
-    const [ground, meadowPatch, grassTuft, rock1, rock2, rock3] = await Promise.all([
+    const [ground, trees, meadowPatch, grassTuft, rock1, rock2, rock3] = await Promise.all([
       loadGroundTextures(),
+      loadTreeTextures(),
       loadModel(modelLoader, `${VEGETATION_PATH}/grass-patch.glb`),
       loadModel(modelLoader, `${VEGETATION_PATH}/grass-tuft.glb`),
       loadModel(modelLoader, `${ROCK_PATH}/rock1.glb`),
       loadModel(modelLoader, `${ROCK_PATH}/rock2.glb`),
       loadModel(modelLoader, `${ROCK_PATH}/rock3.glb`),
     ]);
-    return { ground, meadowPatch, grassTuft, rocks: [rock1, rock2, rock3] };
+    return { ground, trees, meadowPatch, grassTuft, rocks: [rock1, rock2, rock3] };
   } finally {
     dracoLoader.dispose();
   }
@@ -68,6 +79,8 @@ export async function loadLandscapeAssets(): Promise<LandscapeAssets> {
 
 export function disposeLandscapeAssets(assets: LandscapeAssets): void {
   const textures = new Set<Texture>([assets.ground.albedoAtlas, assets.ground.normalAtlas]);
+  for (const maps of assets.trees.bark.values()) textures.add(maps.color).add(maps.normal).add(maps.roughness);
+  for (const texture of Object.values(assets.trees.leaves)) textures.add(texture);
   const models = [assets.meadowPatch, assets.grassTuft, ...assets.rocks];
   for (const model of models) {
     model.geometry.dispose();
@@ -91,9 +104,50 @@ async function loadGroundTextures(): Promise<GroundTextureAssets> {
   return {
     albedoAtlas,
     normalAtlas,
-    tileMeters: metadata.tileMeters,
+    tileMeters: TERRAIN_TILE_METERS,
     atlasSize: metadata.atlasSize[QUALITY_PROFILE.name],
   };
+}
+
+async function loadTreeTextures(): Promise<TreeTextureAssets> {
+  const loader = new TextureLoader();
+  const barkEntries = await Promise.all(
+    getRequiredBarkTextureRequests().map(async (request) => [request.key, await loadBarkMaps(loader, request)] as const),
+  );
+  const leafEntries = await Promise.all(
+    (['ash', 'aspen', 'oak', 'pine'] as const).map(async (species) => {
+      const texture = await loadTreeTexture(loader, `${TREE_PATH}/leaves/${species}.png`, true, true);
+      return [species, texture] as const;
+    }),
+  );
+  return {
+    bark: new Map(barkEntries),
+    leaves: Object.fromEntries(leafEntries) as Record<TreeSpecies, Texture>,
+  };
+}
+
+async function loadBarkMaps(loader: TextureLoader, request: TreeBarkTextureRequest): Promise<TreeBarkMaps> {
+  const directory = `${TREE_PATH}/bark/${request.type}_1K-JPG`;
+  const base = `${directory}/${request.type}_1K-JPG`;
+  const [color, normal, roughness] = await Promise.all([
+    loadTreeTexture(loader, `${base}_Color.jpg`, true),
+    loadTreeTexture(loader, `${base}_NormalGL.jpg`, false),
+    loadTreeTexture(loader, `${base}_Roughness.jpg`, false),
+  ]);
+  return { color, normal, roughness };
+}
+
+async function loadTreeTexture(
+  loader: TextureLoader,
+  url: string,
+  colorTexture: boolean,
+  premultiplyAlpha = false,
+): Promise<Texture> {
+  const texture = await loader.loadAsync(url);
+  texture.anisotropy = 4;
+  texture.premultiplyAlpha = premultiplyAlpha;
+  if (colorTexture) texture.colorSpace = SRGBColorSpace;
+  return texture;
 }
 
 async function loadGroundTexture(loader: TextureLoader, url: string, colorTexture: boolean): Promise<Texture> {
@@ -124,11 +178,15 @@ function isTerrainPaletteMetadata(value: unknown): value is TerrainPaletteMetada
   if (!isRecord(value)) return false;
   const candidate = value as Partial<TerrainPaletteMetadata>;
   return (
-    isTerrainLayerValues(candidate.tileMeters) &&
+    isTerrainLayerValues(candidate.tileMeters) && matchesConfiguredTileMeters(candidate.tileMeters) &&
     candidate.atlasColumns === 3 &&
     candidate.surfaceEncoding === 'normal-rgb-roughness-a' &&
     isAtlasSize(candidate.atlasSize)
   );
+}
+
+function matchesConfiguredTileMeters(value: TerrainLayerValues): boolean {
+  return value.every((entry, index) => entry === TERRAIN_TILE_METERS[index]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

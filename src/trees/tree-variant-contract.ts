@@ -5,7 +5,7 @@
 
 import type { TreePresetData, TreePresetId } from './tree-templates';
 
-export type TreeVariantSlot = TreePresetId | 'hedge';
+export type TreeVariantSlot = TreePresetId;
 
 export interface SerializedGeometry {
   readonly position: Float32Array;
@@ -29,6 +29,7 @@ export interface TreeVariantRequest {
   readonly type: 'generate';
   readonly requestId: number;
   readonly slot: TreeVariantSlot;
+  readonly isHedge: boolean;
   readonly presetId: TreePresetId;
   readonly height: number;
   readonly preset: TreePresetData;

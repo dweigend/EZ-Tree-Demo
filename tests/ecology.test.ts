@@ -12,7 +12,11 @@ import {
   type LandscapeMaterialWeights,
   type LandscapeSurfaceSample,
 } from '../src/ecology/landscape-ecology';
-import { createLandscapeZoneWeights } from '../src/ecology/landscape-zones';
+import {
+  createLandscapeZoneWeights,
+  getPopulationDensityPerHectare,
+  LANDSCAPE_ZONE_IDS,
+} from '../src/ecology/landscape-zones';
 
 const heightField = new HeightField(WORLD_SEED, 1);
 
@@ -59,6 +63,26 @@ describe('landscape material weights', () => {
       }
     }
     maxima.forEach((maximum) => expect(maximum).toBeGreaterThan(0.12));
+  });
+
+  test('creates substantial open land and dense, individually dominant forest zones', () => {
+    let openSamples = 0;
+    let denseSamples = 0;
+    let totalSamples = 0;
+    const dominantZones = new Set<string>();
+    for (let z = -5_000; z <= 5_000; z += 100) {
+      for (let x = -5_000; x <= 5_000; x += 100) {
+        const zones = writeLandscapeZoneWeights(heightField, createSurface(x, z), createLandscapeZoneWeights());
+        const density = getPopulationDensityPerHectare(zones, 'trees');
+        if (density < 2) openSamples += 1;
+        if (density > 18) denseSamples += 1;
+        dominantZones.add(LANDSCAPE_ZONE_IDS.reduce((first, second) => zones[first] > zones[second] ? first : second));
+        totalSamples += 1;
+      }
+    }
+    expect(openSamples / totalSamples).toBeGreaterThan(0.15);
+    expect(denseSamples / totalSamples).toBeGreaterThan(0.2);
+    expect(dominantZones).toEqual(new Set(LANDSCAPE_ZONE_IDS));
   });
 });
 

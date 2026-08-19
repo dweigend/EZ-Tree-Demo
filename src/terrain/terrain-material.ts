@@ -5,6 +5,7 @@
 
 import { MeshStandardMaterial, Vector4 } from 'three';
 import type { GroundTextureAssets } from '../assets/landscape-assets';
+import { TERRAIN_SURFACE_IDS, TERRAIN_TEXTURE_CONFIG } from './terrain-texture-config';
 
 const ATLAS_GUTTER_PIXELS = 8;
 
@@ -14,7 +15,7 @@ export function createTerrainMaterial(textures: GroundTextureAssets): MeshStanda
     roughness: 1,
     metalness: 0,
   });
-  material.normalScale.setScalar(1.15);
+  material.normalScale.setScalar(0.55);
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTerrainAlbedoAtlas = { value: textures.albedoAtlas };
     shader.uniforms.uTerrainTileMetersA = { value: new Vector4(...textures.tileMeters.slice(0, 4)) };
@@ -114,16 +115,7 @@ float getTerrainTrailMask() {
   return 1.0 - smoothstep(2.0, 7.0, distanceToTrail);
 }
 
-vec3 getTerrainBaseColor(float layer) {
-  if (layer < 0.5) return vec3(0.3111, 0.2400, 0.0828);
-  if (layer < 1.5) return vec3(0.3027, 0.2683, 0.2165);
-  if (layer < 2.5) return vec3(0.4476, 0.3025, 0.2044);
-  if (layer < 3.5) return vec3(0.5509, 0.4371, 0.2260);
-  if (layer < 4.5) return vec3(0.5672, 0.5299, 0.3646);
-  if (layer < 5.5) return vec3(0.6167, 0.5034, 0.3978);
-  if (layer < 6.5) return vec3(0.3071, 0.2492, 0.1217);
-  return vec3(0.5755, 0.5034, 0.4182);
-}
+${createTerrainBaseColorShader()}
 
 void considerTerrainLayer(
   float weight,
@@ -172,12 +164,17 @@ vec2 terrainFirstMirrorSign;
 vec2 terrainFirstRotation;
 getTerrainLayerUv(terrainFirstLayer, terrainFirstRepeatedUv, terrainFirstMirrorSign, terrainFirstRotation);
 vec2 terrainFirstUv = getTerrainAtlasUv(terrainFirstLayer, terrainFirstRepeatedUv);
-vec2 terrainDetailRepeatedUv;
-vec2 terrainDetailMirrorSign;
-vec2 terrainDetailRotation;
-getTerrainLayerUv(4.0, terrainDetailRepeatedUv, terrainDetailMirrorSign, terrainDetailRotation);
-vec2 terrainDetailUv = getTerrainAtlasUv(4.0, terrainDetailRepeatedUv);
-vec3 terrainDetailColor = texture2D(uTerrainAlbedoAtlas, terrainDetailUv).rgb;
+vec2 terrainSecondRepeatedUv;
+vec2 terrainSecondMirrorSign;
+vec2 terrainSecondRotation;
+getTerrainLayerUv(terrainSecondLayer, terrainSecondRepeatedUv, terrainSecondMirrorSign, terrainSecondRotation);
+vec2 terrainSecondUv = getTerrainAtlasUv(terrainSecondLayer, terrainSecondRepeatedUv);
+float terrainSurfaceMix = terrainSecondWeight / max(terrainFirstWeight + terrainSecondWeight, 0.0001);
+vec3 terrainTextureColor = mix(
+  texture2D(uTerrainAlbedoAtlas, terrainFirstUv).rgb,
+  texture2D(uTerrainAlbedoAtlas, terrainSecondUv).rgb,
+  terrainSurfaceMix
+);
 vec3 terrainBaseColor = (
   getTerrainBaseColor(0.0) * vTerrainMaterialWeightsA.x
   + getTerrainBaseColor(1.0) * vTerrainMaterialWeightsA.y
@@ -194,24 +191,39 @@ float terrainTotalWeight = max(
   0.0001
 );
 terrainBaseColor /= terrainTotalWeight;
-vec3 terrainDetail = clamp(terrainDetailColor / getTerrainBaseColor(4.0), vec3(0.65), vec3(1.45));
-float terrainDominance = (terrainFirstWeight - terrainSecondWeight) / max(terrainFirstWeight, 0.0001);
-float terrainDetailStrength = smoothstep(0.06, 0.38, terrainDominance) * 0.85;
-vec3 terrainColor = terrainBaseColor * mix(vec3(1.0), terrainDetail, 0.55);
+float terrainDistanceDetail = 1.0 - smoothstep(140.0, 520.0, length(vViewPosition));
+float terrainDetailStrength = (1.0 - smoothstep(70.0, 300.0, length(vViewPosition))) * 0.55;
+vec3 terrainColor = mix(terrainBaseColor, terrainTextureColor, terrainDistanceDetail * 0.82);
 diffuseColor.rgb *= terrainColor * 0.85;
 `;
 
-// One dominant packed sample preserves normal/roughness detail without doubling fragment texture bandwidth.
+// The two dominant real surfaces blend symmetrically, so a layer-order change cannot draw a hard zone contour.
 const groundSurfaceSampleShader = /* glsl */ `
 vec4 terrainFirstSurface = texture2D(normalMap, terrainFirstUv);
+vec4 terrainSecondSurface = texture2D(normalMap, terrainSecondUv);
 `;
 
 const groundRoughnessShader = /* glsl */ `
-float roughnessFactor = roughness * mix(0.92, terrainFirstSurface.a, terrainDetailStrength);
+float terrainSurfaceRoughness = mix(terrainFirstSurface.a, terrainSecondSurface.a, terrainSurfaceMix);
+float roughnessFactor = roughness * mix(0.92, terrainSurfaceRoughness, terrainDetailStrength);
 `;
 
 const groundNormalShader = /* glsl */ `
-vec3 mapN = decodeTerrainNormal(terrainFirstSurface, terrainFirstMirrorSign, terrainFirstRotation);
+vec3 terrainFirstNormal = decodeTerrainNormal(terrainFirstSurface, terrainFirstMirrorSign, terrainFirstRotation);
+vec3 terrainSecondNormal = decodeTerrainNormal(terrainSecondSurface, terrainSecondMirrorSign, terrainSecondRotation);
+vec3 mapN = normalize(mix(terrainFirstNormal, terrainSecondNormal, terrainSurfaceMix));
 mapN.xy *= normalScale * terrainDetailStrength;
 normal = normalize(tbn * mapN);
 `;
+
+function createTerrainBaseColorShader(): string {
+  const conditions = TERRAIN_SURFACE_IDS.slice(0, -1).map((surface, index) => {
+    return `if (layer < ${(index + 0.5).toFixed(1)}) return ${toGlslColor(surface)};`;
+  });
+  return `vec3 getTerrainBaseColor(float layer) {\n  ${conditions.join('\n  ')}\n  return ${toGlslColor('trail')};\n}`;
+}
+
+function toGlslColor(surface: (typeof TERRAIN_SURFACE_IDS)[number]): string {
+  const color = TERRAIN_TEXTURE_CONFIG.baseColors[surface];
+  return `vec3(${color.map((channel) => channel.toFixed(4)).join(', ')})`;
+}

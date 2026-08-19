@@ -1,0 +1,24 @@
+{
+  "name": "@dgreenheck/ez-tree",
+  "version": "1.1.0-main.dcf309b",
+  "description": "Pinned official EZ-Tree mainline build used by the landscape runtime.",
+  "type": "module",
+  "main": "./build/ez-tree.es.js",
+  "module": "./build/ez-tree.es.js",
+  "types": "./build/ez-tree.es.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/ez-tree.es.d.ts",
+      "import": "./build/ez-tree.es.js"
+    }
+  },
+  "peerDependencies": {
+    "three": ">=0.167"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dgreenheck/ez-tree.git",
+    "commit": "dcf309bd86bd521083d9c70f01f2de45fdc7c457"
+  }
+}

@@ -45,7 +45,7 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
     pixelRatioCap: 1.5,
     shadowDistance: 170,
     shadowMapSize: 1_536,
-    leafShadows: true,
+    leafShadows: false,
     xrFramebufferScale: 1,
     xrFoveation: 0,
   },
@@ -78,10 +78,16 @@ const desktopDistance = readNumberParameter(parameters, 'distance', QUALITY_PROF
 const viewDistance = QUALITY_PROFILE.name === 'desktop' ? desktopDistance : QUALITY_PROFILE.viewDistance;
 const fogDensity = readNumberParameter(parameters, 'fog', 1.7 / viewDistance, 0.0008, 0.0026);
 const relief = readNumberParameter(parameters, 'relief', 1, 0.7, 1.4);
+const startX = readNumberParameter(parameters, 'x', 0, -10_000, 10_000);
+const startZ = readNumberParameter(parameters, 'z', 120, -10_000, 10_000);
+const startAltitude = readNumberParameter(parameters, 'altitude', 62, 4, 200);
 
 export const LANDSCAPE_VIEW = {
   distance: viewDistance,
   relief,
+  startX,
+  startZ,
+  startAltitude,
 } as const;
 
 export const TERRAIN = {

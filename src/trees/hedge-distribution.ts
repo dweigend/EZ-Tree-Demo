@@ -29,6 +29,7 @@ export interface HedgePlacement {
   readonly windPhase: number;
   readonly windStrength: number;
   readonly tint: number;
+  readonly variant: number;
 }
 
 interface HedgeRow {
@@ -40,6 +41,7 @@ interface HedgeRow {
   readonly length: number;
   readonly bend: number;
   readonly pointCount: number;
+  readonly variant: number;
 }
 
 interface HedgePoint {
@@ -70,7 +72,10 @@ export class HedgeDistribution {
   public constructor(
     private readonly heightField: HeightField,
     private readonly seed: number,
-  ) {}
+    private readonly variantCount = 1,
+  ) {
+    if (variantCount < 1) throw new Error('Hedge distribution requires at least one visual variant.');
+  }
 
   public getChunkPlacements(chunkX: number, chunkZ: number): HedgePlacement[] {
     const key = `${chunkX}:${chunkZ}`;
@@ -118,6 +123,7 @@ export class HedgeDistribution {
       length,
       bend: signedRandom(hashCoordinates(hash, 37, 41)) * 13,
       pointCount: Math.max(2, Math.round(length / shrubSpacing) + 1),
+      variant: hash % this.variantCount,
     };
   }
 
@@ -161,6 +167,7 @@ export class HedgeDistribution {
       windPhase: unitRandom(hashCoordinates(hash, 29, 31)) * Math.PI * 2,
       windStrength: 0.55 + unitRandom(hashCoordinates(hash, 37, 41)) * 0.35,
       tint: unitRandom(hashCoordinates(hash, 43, 47)),
+      variant: row.variant,
     };
   }
 
