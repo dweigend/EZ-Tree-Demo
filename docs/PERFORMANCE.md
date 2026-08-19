@@ -15,7 +15,7 @@ recycelt und optionale CPU-Arbeit wird über Folgeframes verteilt.
 - Desktop: 49 Terrain-Chunks, 31 blickrichtungsgewichtete Vegetations-Chunks und 1.050 m Sichtweite.
 - Bäume: vier Arten-Slots, ein gemeinsamer Nahstamm-Batch und gemeinsame Mittel-/Fernsilhouetten.
 - Hecken: zwei belaubte LOD-Batches; unsichtbare Ast-Batches sparen Draw Calls und Dreiecke.
-- Boden: acht Atlasflächen, sechs kontinuierliche Zonen, ein Albedo- und ein gepackter Surface-Sample.
+- Boden: ein gemeinsamer 1536²-Atlas mit acht Flächen, sechs kontinuierliche Zonen, ein Albedo- und ein gepackter Surface-Sample.
 - Worker: genau ein Variantenjob; 30 s Desktop, 60 s PICO, 2 s nur mit `variantStress=1`.
 - Streaming: Vegetations-Rebuild, Ground-Cover-Rebuild und Terrain-Resample werden nicht gestapelt.
 

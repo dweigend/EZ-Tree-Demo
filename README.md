@@ -73,8 +73,8 @@ So bleiben Übergänge ohne Top-N-Konturen bei weiterhin je einem Albedo- und Su
 
 Die aktive Palette nutzt acht lokale Poly-Haven-CC0-Materialien einschließlich Forest Ground 03 für
 Nadelboden. Quellen, Autoren, Kachelung und
-Download-URLs stehen in `assets/source/terrain-materials/polyhaven.json`. ImageMagick packt daraus
-feste Desktop-/PICO-Atlanten:
+Download-URLs stehen in `assets/source/landscape/terrain-materials/terrain-textures.config.json`. ImageMagick packt daraus
+einen gemeinsamen 1536²-Terrain-Atlas für Desktop und PICO:
 
 ```bash
 bun run assets:all

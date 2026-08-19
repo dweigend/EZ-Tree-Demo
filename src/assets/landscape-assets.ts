@@ -15,7 +15,6 @@ import {
 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { QUALITY_PROFILE } from '../config';
 import { TERRAIN_TILE_METERS } from '../terrain/terrain-texture-config';
 import {
   getRequiredBarkTextureRequests,
@@ -36,7 +35,6 @@ export interface GroundTextureAssets {
   readonly surfaceAtlas: Texture;
   readonly tileMeters: TerrainLayerValues;
   readonly atlasSize: number;
-  readonly parallaxMeters: number;
 }
 
 export type TerrainLayerValues = readonly [number, number, number, number, number, number, number, number];
@@ -86,7 +84,7 @@ export function disposeLandscapeAssets(assets: LandscapeAssets): void {
 
 async function loadGroundTextures(): Promise<GroundTextureAssets> {
   const loader = new TextureLoader();
-  const atlas = LANDSCAPE_ASSET_CATALOG.terrain[QUALITY_PROFILE.name];
+  const atlas = LANDSCAPE_ASSET_CATALOG.terrain;
   const [albedoAtlas, surfaceAtlas] = await Promise.all([
     loadGroundTexture(loader, atlas.albedo, true),
     loadGroundTexture(loader, atlas.surface, false),
@@ -96,7 +94,6 @@ async function loadGroundTextures(): Promise<GroundTextureAssets> {
     surfaceAtlas,
     tileMeters: TERRAIN_TILE_METERS,
     atlasSize: atlas.atlasSize,
-    parallaxMeters: atlas.parallaxMeters,
   };
 }
 

@@ -1,5 +1,5 @@
 /**
- * Defines every shipped landscape asset URL and profile-specific terrain atlas setting.
+ * Defines every shipped landscape asset URL and the shared terrain atlas.
  * Source material choices stay in terrain-texture-config; this catalog only owns runtime files.
  */
 
@@ -9,7 +9,6 @@ export interface TerrainAtlasAsset {
   readonly albedo: string;
   readonly surface: string;
   readonly atlasSize: number;
-  readonly parallaxMeters: number;
 }
 
 interface TreeMapAsset {
@@ -19,7 +18,7 @@ interface TreeMapAsset {
 }
 
 interface LandscapeAssetCatalog {
-  readonly terrain: Readonly<Record<'desktop' | 'pico90', TerrainAtlasAsset>>;
+  readonly terrain: TerrainAtlasAsset;
   readonly trees: {
     readonly bark: Readonly<Record<BarkTextureId, TreeMapAsset>>;
     readonly leaves: Readonly<Record<TreeSpecies, string>>;
@@ -35,18 +34,9 @@ const ASSET_ROOT = '/assets/landscape';
 
 export const LANDSCAPE_ASSET_CATALOG = {
   terrain: {
-    desktop: {
-      albedo: `${ASSET_ROOT}/terrain/desktop/albedo.webp`,
-      surface: `${ASSET_ROOT}/terrain/desktop/surface.webp`,
-      atlasSize: 3_072,
-      parallaxMeters: 0.02,
-    },
-    pico90: {
-      albedo: `${ASSET_ROOT}/terrain/pico90/albedo.webp`,
-      surface: `${ASSET_ROOT}/terrain/pico90/surface.webp`,
-      atlasSize: 1_536,
-      parallaxMeters: 0,
-    },
+    albedo: `${ASSET_ROOT}/terrain/albedo.webp`,
+    surface: `${ASSET_ROOT}/terrain/surface.webp`,
+    atlasSize: 1_536,
   },
   trees: {
     bark: {

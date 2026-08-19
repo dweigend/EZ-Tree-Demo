@@ -13,8 +13,8 @@ Boundary: This handoff records implemented code; physical PICO acceptance remain
   beim Trellis bleibt das künstliche Gitter unsichtbar.
 - Sechs kontinuierliche Zonen (`meadow`, `wetLowland`, `dryBroadleaf`, `moistBroadleaf`,
   `coniferHighland`, `rockyRidge`) werden von Terrain und Baumartenwahl gemeinsam genutzt.
-- Acht lokale Poly-Haven-CC0-Flächen enthalten nun Forest Ground 03 als Nadelboden. Der 3×3-Atlas
-  behält einen freien Füllslot und benötigt zur Laufzeit keinen Netzzugriff.
+- Acht lokale Poly-Haven-CC0-Flächen enthalten nun Forest Ground 03 als Nadelboden. Der gemeinsame
+  1536²-3×3-Atlas behält einen freien Füllslot und benötigt zur Laufzeit keinen Netzzugriff.
 - Hecken entstehen als deterministische, gebogene und absichtlich lückenhafte Makro-Zeilen. Sie meiden
   steile Hänge, Felsrücken und Wege und besitzen eindeutige Chunk-Zugehörigkeit.
 - Ein ES-Module-Worker rotiert alle Presets. Seed, Astwinkel, Gnarliness und Länge variieren um höchstens

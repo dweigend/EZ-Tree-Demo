@@ -1,5 +1,5 @@
 /**
- * Builds fixed 3x3 desktop and PICO atlases from the eight local Poly Haven materials.
+ * Builds one fixed 3x3 terrain atlas from the eight local Poly Haven materials.
  * Runtime receives albedo plus RG normal XY, B height, and A roughness surface data.
  */
 
@@ -36,30 +36,28 @@ const tempRoot = await mkdtemp(path.join(tmpdir(), 'terrain-atlas-'));
 
 try {
   await validateMaps(TERRAIN_TEXTURE_CONFIG.materials);
-  for (const profile of Object.values(LANDSCAPE_ASSET_CATALOG.terrain)) {
-    await buildProfileAtlas(profile, TERRAIN_TEXTURE_CONFIG.materials);
-  }
+  await buildTerrainAtlas(LANDSCAPE_ASSET_CATALOG.terrain, TERRAIN_TEXTURE_CONFIG.materials);
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
 }
 
-async function buildProfileAtlas(
-  profile: TerrainAtlasAsset,
+async function buildTerrainAtlas(
+  atlas: TerrainAtlasAsset,
   materials: readonly TerrainMaterialConfig[],
 ): Promise<void> {
-  const profileRoot = path.dirname(toRuntimePath(profile.albedo));
-  await mkdir(profileRoot, { recursive: true });
+  const outputRoot = path.dirname(toRuntimePath(atlas.albedo));
+  await mkdir(outputRoot, { recursive: true });
   await buildAtlas({
     materials,
     map: 'albedo',
-    atlasSize: profile.atlasSize,
-    output: toRuntimePath(profile.albedo),
+    atlasSize: atlas.atlasSize,
+    output: toRuntimePath(atlas.albedo),
   });
   await buildAtlas({
     materials,
     map: 'surface',
-    atlasSize: profile.atlasSize,
-    output: toRuntimePath(profile.surface),
+    atlasSize: atlas.atlasSize,
+    output: toRuntimePath(atlas.surface),
   });
 }
 

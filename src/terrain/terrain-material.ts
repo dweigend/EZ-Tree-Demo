@@ -21,7 +21,6 @@ export function createTerrainMaterial(textures: GroundTextureAssets): MeshStanda
     shader.uniforms.uTerrainTileMetersA = { value: new Vector4(...textures.tileMeters.slice(0, 4)) };
     shader.uniforms.uTerrainTileMetersB = { value: new Vector4(...textures.tileMeters.slice(4)) };
     shader.uniforms.uTerrainAtlasGutter = { value: ATLAS_GUTTER_PIXELS / textures.atlasSize };
-    shader.uniforms.uTerrainParallaxMeters = { value: textures.parallaxMeters };
     shader.vertexShader = `${terrainVertexHeader}\n${shader.vertexShader}`;
     shader.fragmentShader = `${terrainFragmentHeader}\n${shader.fragmentShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <worldpos_vertex>', worldPositionShader);
@@ -52,7 +51,6 @@ uniform sampler2D uTerrainAlbedoAtlas;
 uniform vec4 uTerrainTileMetersA;
 uniform vec4 uTerrainTileMetersB;
 uniform float uTerrainAtlasGutter;
-uniform float uTerrainParallaxMeters;
 varying vec3 vTerrainWorldPosition;
 varying vec4 vTerrainMaterialWeightsA;
 varying vec4 vTerrainMaterialWeightsB;
@@ -126,21 +124,6 @@ float getTerrainHeightMix(float firstWeight, float secondWeight, float firstHeig
   return blend.y / max(blend.x + blend.y, 0.0001);
 }
 
-vec2 getTerrainParallaxUv(
-  float layer,
-  vec2 repeatedUv,
-  vec2 mirrorSign,
-  vec2 rotation,
-  float height
-) {
-  if (uTerrainParallaxMeters <= 0.0) return repeatedUv;
-  vec3 viewDirection = normalize(cameraPosition - vTerrainWorldPosition);
-  vec2 worldOffset = viewDirection.xz / max(viewDirection.y, 0.3);
-  vec2 rotatedOffset = mat2(rotation.x, -rotation.y, rotation.y, rotation.x) * worldOffset;
-  vec2 uvOffset = rotatedOffset * ((height - 0.5) * uTerrainParallaxMeters / getTerrainTileMeters(layer));
-  return clamp(repeatedUv - uvOffset * mirrorSign, vec2(0.0), vec2(1.0));
-}
-
 ${createTerrainBaseColorShader()}
 
 void considerTerrainLayer(
@@ -200,26 +183,6 @@ float terrainSurfaceMix = getTerrainHeightMix(
   terrainFirstSurface.b,
   terrainSecondSurface.b
 );
-if (uTerrainParallaxMeters > 0.0) {
-  terrainFirstRepeatedUv = getTerrainParallaxUv(
-    terrainFirstLayer,
-    terrainFirstRepeatedUv,
-    terrainFirstMirrorSign,
-    terrainFirstRotation,
-    terrainFirstSurface.b
-  );
-  terrainSecondRepeatedUv = getTerrainParallaxUv(
-    terrainSecondLayer,
-    terrainSecondRepeatedUv,
-    terrainSecondMirrorSign,
-    terrainSecondRotation,
-    terrainSecondSurface.b
-  );
-  terrainFirstUv = getTerrainAtlasUv(terrainFirstLayer, terrainFirstRepeatedUv);
-  terrainSecondUv = getTerrainAtlasUv(terrainSecondLayer, terrainSecondRepeatedUv);
-  terrainFirstSurface = texture2D(normalMap, terrainFirstUv);
-  terrainSecondSurface = texture2D(normalMap, terrainSecondUv);
-}
 vec3 terrainTextureColor = mix(
   texture2D(uTerrainAlbedoAtlas, terrainFirstUv).rgb,
   texture2D(uTerrainAlbedoAtlas, terrainSecondUv).rgb,
@@ -260,17 +223,6 @@ if (terrainTrailMix > 0.0001) {
   getTerrainLayerUv(7.0, terrainTrailRepeatedUv, terrainTrailMirrorSign, terrainTrailRotation);
   vec2 terrainTrailUv = getTerrainAtlasUv(7.0, terrainTrailRepeatedUv);
   terrainTrailSurface = texture2D(normalMap, terrainTrailUv);
-  if (uTerrainParallaxMeters > 0.0) {
-    terrainTrailRepeatedUv = getTerrainParallaxUv(
-      7.0,
-      terrainTrailRepeatedUv,
-      terrainTrailMirrorSign,
-      terrainTrailRotation,
-      terrainTrailSurface.b
-    );
-    terrainTrailUv = getTerrainAtlasUv(7.0, terrainTrailRepeatedUv);
-    terrainTrailSurface = texture2D(normalMap, terrainTrailUv);
-  }
   vec3 terrainTrailColor = texture2D(uTerrainAlbedoAtlas, terrainTrailUv).rgb;
   float terrainTrailCavity = 1.0 - smoothstep(0.2, 0.62, terrainTrailSurface.b);
   terrainTrailColor *= mix(1.0, 0.82, terrainTrailCavity * terrainDistanceDetail);

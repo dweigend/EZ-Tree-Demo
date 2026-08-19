@@ -28,23 +28,16 @@ test('terrain config maps eight ordered slots to complete local PBR sources', as
   }
 });
 
-test('runtime catalog owns the final profile paths without palette metadata fetches', async () => {
-  expect(LANDSCAPE_ASSET_CATALOG.terrain.desktop).toEqual({
-    albedo: '/assets/landscape/terrain/desktop/albedo.webp',
-    surface: '/assets/landscape/terrain/desktop/surface.webp',
-    atlasSize: 3072,
-    parallaxMeters: 0.02,
-  });
-  expect(LANDSCAPE_ASSET_CATALOG.terrain.pico90).toEqual({
-    albedo: '/assets/landscape/terrain/pico90/albedo.webp',
-    surface: '/assets/landscape/terrain/pico90/surface.webp',
+test('runtime catalog owns one shared terrain atlas without palette metadata fetches', async () => {
+  expect(LANDSCAPE_ASSET_CATALOG.terrain).toEqual({
+    albedo: '/assets/landscape/terrain/albedo.webp',
+    surface: '/assets/landscape/terrain/surface.webp',
     atlasSize: 1536,
-    parallaxMeters: 0,
   });
-  for (const profile of Object.values(LANDSCAPE_ASSET_CATALOG.terrain)) {
-    expect(await Bun.file(toPublicPath(profile.albedo)).exists()).toBe(true);
-    expect(await Bun.file(toPublicPath(profile.surface)).exists()).toBe(true);
-  }
+  expect(await Bun.file(toPublicPath(LANDSCAPE_ASSET_CATALOG.terrain.albedo)).exists()).toBe(true);
+  expect(await Bun.file(toPublicPath(LANDSCAPE_ASSET_CATALOG.terrain.surface)).exists()).toBe(true);
+  expect(await Bun.file('public/assets/landscape/terrain/desktop/albedo.webp').exists()).toBe(false);
+  expect(await Bun.file('public/assets/landscape/terrain/pico90/albedo.webp').exists()).toBe(false);
   expect(await Bun.file('public/assets/landscape/terrain/palette.json').exists()).toBe(false);
 });
 
