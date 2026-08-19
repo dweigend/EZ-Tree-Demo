@@ -1,4 +1,4 @@
-# Endless Wilds
+# EZ-Tree World
 
 Experimental WebGL2 prototype of a practically endless, procedurally generated landscape with freely controlled flight, streamed terrain chunks, and instanced vegetation made from licensed assets.
 
