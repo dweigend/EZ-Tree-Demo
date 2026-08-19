@@ -3,9 +3,9 @@
  * Runtime materials and Three.js objects deliberately stay on the main thread.
  */
 
-import type { TreePresetData, TreePresetId, TreeSpecies } from './tree-templates';
+import type { TreePresetData, TreePresetId } from './tree-templates';
 
-export type TreeVariantSlot = TreeSpecies | 'hedge';
+export type TreeVariantSlot = TreePresetId | 'hedge';
 
 export interface SerializedGeometry {
   readonly position: Float32Array;

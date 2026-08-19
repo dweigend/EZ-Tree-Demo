@@ -42,8 +42,14 @@ describe('local EZ-Tree preset catalog', () => {
     }
   });
 
-  test('starts with one medium slot per tree species and all hedge sources', () => {
-    expect(TREE_TEMPLATES.map((template) => template.species)).toEqual(['ash', 'aspen', 'oak', 'pine']);
+  test('activates small, medium, and large slots for every tree species', () => {
+    expect(TREE_TEMPLATES).toHaveLength(12);
+    expect(TREE_TEMPLATES.map((template) => `${template.species}:${template.size}`)).toEqual([
+      'ash:small', 'ash:medium', 'ash:large',
+      'aspen:small', 'aspen:medium', 'aspen:large',
+      'oak:small', 'oak:medium', 'oak:large',
+      'pine:small', 'pine:medium', 'pine:large',
+    ]);
     expect(HEDGE_TEMPLATES.map((template) => template.id)).toEqual(['bush-1', 'bush-2', 'bush-3', 'trellis']);
   });
 

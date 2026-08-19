@@ -24,6 +24,7 @@ import { hashCoordinates, signedRandom } from '../core/random';
 export type TreeSpecies = 'ash' | 'aspen' | 'oak' | 'pine';
 export type TreePresetKind = 'tree' | 'hedge';
 export type TreePresetSize = 'small' | 'medium' | 'large' | 'shrub';
+export type TreeSize = Exclude<TreePresetSize, 'shrub'>;
 export type TreePresetId =
   | 'ash-small'
   | 'ash-medium'
@@ -118,7 +119,7 @@ export const TREE_PRESET_CATALOG: readonly TreeTemplate[] = [
 ] as const;
 
 export const TREE_TEMPLATES = TREE_PRESET_CATALOG.filter(
-  (template) => template.kind === 'tree' && template.size === 'medium',
+  (template) => template.kind === 'tree',
 );
 
 export const HEDGE_TEMPLATES = TREE_PRESET_CATALOG.filter((template) => template.kind === 'hedge');

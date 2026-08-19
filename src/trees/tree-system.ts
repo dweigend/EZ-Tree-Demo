@@ -15,7 +15,7 @@ import type { ForestDistribution, TreePlacement } from './forest-distribution';
 import type { HedgeDistribution, HedgePlacement } from './hedge-distribution';
 import type { TreeLod, TreeVariant } from './tree-factory';
 import type { GeneratedVariantUpdate } from './tree-variant-generator';
-import type { TreeSpecies } from './tree-templates';
+import type { TreePresetId, TreeSpecies } from './tree-templates';
 import type { TreeVariantSlot } from './tree-variant-contract';
 
 interface TreeBatch {
@@ -74,7 +74,7 @@ export class TreeSystem {
   private readonly treeBatches: TreeBatch[][];
   private readonly hedgeBatches: readonly [TreeBatch, TreeBatch];
   private readonly sharedNearBranches: BranchBatch;
-  private readonly speciesIndices: Readonly<Record<TreeSpecies, number>>;
+  private readonly presetIndices: ReadonlyMap<TreePresetId, number>;
   private readonly activeHeights: number[];
   private readonly activePresetIds: string[];
   private readonly stagedVariants = new Map<TreeVariantSlot, GeneratedVariantUpdate>();
@@ -93,7 +93,7 @@ export class TreeSystem {
     this.forest = options.forest;
     this.hedgeVariant = options.hedgeVariant;
     this.hedges = options.hedges;
-    this.speciesIndices = this.createSpeciesIndices();
+    this.presetIndices = new Map(this.variants.map((variant, index) => [variant.presetId, index]));
     this.activeHeights = this.variants.map((variant) => variant.height);
     this.activePresetIds = this.variants.map((variant) => variant.presetId);
     this.activeHedgeHeight = this.hedgeVariant.height;
@@ -293,24 +293,10 @@ export class TreeSystem {
     return { mesh, count: 0 };
   }
 
-  private createSpeciesIndices(): Readonly<Record<TreeSpecies, number>> {
-    return {
-      ash: this.getSpeciesIndex('ash'),
-      aspen: this.getSpeciesIndex('aspen'),
-      oak: this.getSpeciesIndex('oak'),
-      pine: this.getSpeciesIndex('pine'),
-    };
-  }
-
-  private getSpeciesIndex(species: TreeSpecies): number {
-    const index = this.variants.findIndex((variant) => variant.species === species);
-    if (index < 0) throw new Error(`Tree rendering is missing the ${species} slot.`);
-    return index;
-  }
-
   private applyStagedVariants(): void {
     for (const [slot, update] of this.stagedVariants) {
-      const batch = slot === 'hedge' ? this.hedgeBatches[0] : this.treeBatches[this.speciesIndices[slot]]?.[0];
+      const variantIndex = slot === 'hedge' ? undefined : this.presetIndices.get(slot);
+      const batch = slot === 'hedge' ? this.hedgeBatches[0] : this.treeBatches[variantIndex ?? -1]?.[0];
       if (!batch || batch.count > 0) continue;
       update.leaves.setAttribute('aWindPhase', batch.phase);
       update.leaves.setAttribute('aWindStrength', batch.strength);
@@ -327,7 +313,8 @@ export class TreeSystem {
       this.activeHedgePresetId = update.presetId;
       return;
     }
-    const index = this.speciesIndices[slot];
+    const index = this.presetIndices.get(slot);
+    if (index === undefined) return;
     this.activeHeights[index] = update.height;
     this.activePresetIds[index] = update.presetId;
   }

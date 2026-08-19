@@ -3,6 +3,7 @@
  * It selects cached positions and species; TreeSystem owns LODs, capacity, and rendering.
  */
 
+import { MathUtils } from 'three';
 import { VEGETATION } from '../config';
 import type { HeightField } from '../core/height-field';
 import { hashCoordinates, unitRandom } from '../core/random';
@@ -23,7 +24,55 @@ import {
   type LandscapeZoneWeights,
 } from '../ecology/landscape-zones';
 import { getChunkBounds } from '../world/chunk-coordinates';
-import type { TreeSpecies } from './tree-templates';
+import type { TreePresetSize, TreeSize, TreeSpecies } from './tree-templates';
+
+interface TreeVisualVariant {
+  readonly species: TreeSpecies;
+  readonly size: TreePresetSize;
+}
+
+interface TreeCohortPattern {
+  readonly sizeWeights: Readonly<Record<TreeSize, number>>;
+  readonly cohortMeters: number;
+  readonly cohesion: number;
+  readonly salt: number;
+}
+
+const TREE_SIZES = ['small', 'medium', 'large'] as const satisfies readonly TreeSize[];
+const TREE_SPECIES = ['ash', 'aspen', 'oak', 'pine'] as const satisfies readonly TreeSpecies[];
+const SPECIES_PATCH_METERS = 82;
+const SPECIES_PATCH_COHESION = 0.78;
+/**
+ * Morphology only: zones still own species and density.
+ * Aspen forms tight young clonal groups, pine stronger even-aged stands, ash mixed cohorts,
+ * and oak looser mature groups with more large silhouettes.
+ */
+const TREE_COHORTS: Readonly<Record<TreeSpecies, TreeCohortPattern>> = {
+  ash: {
+    sizeWeights: { small: 0.24, medium: 0.55, large: 0.21 },
+    cohortMeters: 58,
+    cohesion: 0.58,
+    salt: 0x4a91,
+  },
+  aspen: {
+    sizeWeights: { small: 0.36, medium: 0.5, large: 0.14 },
+    cohortMeters: 44,
+    cohesion: 0.82,
+    salt: 0x5ba2,
+  },
+  oak: {
+    sizeWeights: { small: 0.12, medium: 0.48, large: 0.4 },
+    cohortMeters: 92,
+    cohesion: 0.46,
+    salt: 0x6cb3,
+  },
+  pine: {
+    sizeWeights: { small: 0.28, medium: 0.52, large: 0.2 },
+    cohortMeters: 72,
+    cohesion: 0.84,
+    salt: 0x7dc4,
+  },
+};
 
 export interface TreePlacement {
   readonly x: number;
@@ -41,7 +90,6 @@ export interface TreePlacement {
 
 export class ForestDistribution {
   private readonly cache = new Map<string, TreePlacement[]>();
-  private readonly allVariantIndices: number[] = [];
   private readonly zones = createLandscapeZoneWeights();
   private readonly surface: LandscapeSurfaceSample = {
     x: 0,
@@ -50,24 +98,24 @@ export class ForestDistribution {
     slopeDegrees: 0,
   };
   private readonly lattice: PopulationLattice;
-  private readonly variantIndices: Record<TreeSpecies, number[]> = {
-    ash: [],
-    aspen: [],
-    oak: [],
-    pine: [],
-  };
+  private readonly variantIndices = createVariantIndices();
 
   public constructor(
     private readonly heightField: HeightField,
     seed: number,
-    variants: readonly { readonly species: TreeSpecies }[],
+    variants: readonly TreeVisualVariant[],
   ) {
     if (variants.length === 0) throw new Error('Forest distribution requires tree variants.');
     this.lattice = createPopulationLattice(getMaximumPopulationDensityPerHectare('trees'), seed);
     variants.forEach((variant, index) => {
-      this.variantIndices[variant.species].push(index);
-      this.allVariantIndices.push(index);
+      if (variant.size === 'shrub') throw new Error('Forest distribution cannot place shrub variants as trees.');
+      this.variantIndices[variant.species][variant.size].push(index);
     });
+    for (const species of TREE_SPECIES) {
+      if (TREE_SIZES.every((size) => this.variantIndices[species][size].length === 0)) {
+        throw new Error(`Forest distribution requires a ${species} variant.`);
+      }
+    }
   }
 
   public getChunkPlacements(chunkX: number, chunkZ: number): TreePlacement[] {
@@ -104,9 +152,16 @@ export class ForestDistribution {
     const authoredDensity = getPopulationDensityPerHectare(this.zones, 'trees');
     const density = Math.min(authoredDensity, VEGETATION.maximumTreeDensityPerHectare);
     if (candidate.densityRankPerHectare >= density) return null;
-    const species = selectPopulationType(this.zones, 'trees', unitRandom(hashCoordinates(candidate.hash, 19, 23)));
+    const species = this.chooseSpecies(candidate);
     if (!species) return null;
-    return this.buildPlacement(candidate, species);
+    return this.buildPlacement(candidate, species, density);
+  }
+
+  private chooseSpecies(candidate: PopulationCandidate): TreeSpecies | null {
+    const individual = unitRandom(hashCoordinates(candidate.hash, 19, 23));
+    const patch = this.getPatchSelection(candidate, SPECIES_PATCH_METERS, 0x39a7);
+    const joinsPatch = unitRandom(hashCoordinates(candidate.hash, 83, 89)) < SPECIES_PATCH_COHESION;
+    return selectPopulationType(this.zones, 'trees', joinsPatch ? patch : individual);
   }
 
   private sampleZones(x: number, z: number): LandscapeZoneWeights {
@@ -117,7 +172,7 @@ export class ForestDistribution {
     return writeLandscapeZoneWeights(this.heightField, this.surface, this.zones);
   }
 
-  private buildPlacement(candidate: PopulationCandidate, species: TreeSpecies): TreePlacement {
+  private buildPlacement(candidate: PopulationCandidate, species: TreeSpecies, density: number): TreePlacement {
     const hash = candidate.hash;
     return {
       x: candidate.x,
@@ -127,16 +182,55 @@ export class ForestDistribution {
       scale: 0.82 + unitRandom(hashCoordinates(hash, 17, 19)) * 0.38,
       widthScale: 0.9 + unitRandom(hashCoordinates(hash, 61, 67)) * 0.22,
       depthScale: 0.9 + unitRandom(hashCoordinates(hash, 71, 73)) * 0.2,
-      variant: this.chooseVariant(species, hash),
+      variant: this.chooseVariant(candidate, species, density),
       windPhase: unitRandom(hashCoordinates(hash, 37, 41)) * Math.PI * 2,
       windStrength: 0.72 + unitRandom(hashCoordinates(hash, 43, 47)) * 0.48,
       tint: unitRandom(hashCoordinates(hash, 53, 59)),
     };
   }
 
-  private chooseVariant(species: TreeSpecies, hash: number): number {
-    const candidates = this.variantIndices[species];
-    const pool = candidates.length > 0 ? candidates : this.allVariantIndices;
-    return pool[hashCoordinates(hash, 29, 31) % pool.length] ?? 0;
+  private chooseVariant(candidate: PopulationCandidate, species: TreeSpecies, density: number): number {
+    const size = this.chooseTreeSize(candidate, species, density);
+    const exactPool = this.variantIndices[species][size];
+    const pool = exactPool.length > 0
+      ? exactPool
+      : TREE_SIZES.flatMap((candidateSize) => this.variantIndices[species][candidateSize]);
+    return pool[hashCoordinates(candidate.hash, 29, 31) % pool.length]!;
   }
+
+  private chooseTreeSize(candidate: PopulationCandidate, species: TreeSpecies, density: number): TreeSize {
+    const pattern = TREE_COHORTS[species];
+    const cohortSelection = this.getCohortSelection(candidate, pattern);
+    const sparseMaturity = 1 - density / VEGETATION.maximumTreeDensityPerHectare;
+    const slopeStunting = MathUtils.smoothstep(this.surface.slopeDegrees, 10, 30);
+    const selection = MathUtils.clamp(
+      cohortSelection + sparseMaturity * 0.17 - slopeStunting * 0.34,
+      0,
+      0.999_999,
+    );
+    if (selection < pattern.sizeWeights.small) return 'small';
+    if (selection < pattern.sizeWeights.small + pattern.sizeWeights.medium) return 'medium';
+    return 'large';
+  }
+
+  private getCohortSelection(candidate: PopulationCandidate, pattern: TreeCohortPattern): number {
+    const individual = unitRandom(hashCoordinates(candidate.hash, 97, 101));
+    const patch = this.getPatchSelection(candidate, pattern.cohortMeters, pattern.salt);
+    return MathUtils.lerp(individual, patch, pattern.cohesion);
+  }
+
+  private getPatchSelection(candidate: PopulationCandidate, patchMeters: number, salt: number): number {
+    const patchX = Math.floor((candidate.x + candidate.z * 0.37) / patchMeters);
+    const patchZ = Math.floor((candidate.z - candidate.x * 0.29) / patchMeters);
+    return unitRandom(hashCoordinates(this.lattice.seed, patchX, patchZ, salt));
+  }
+}
+
+function createVariantIndices(): Record<TreeSpecies, Record<TreeSize, number[]>> {
+  return {
+    ash: { small: [], medium: [], large: [] },
+    aspen: { small: [], medium: [], large: [] },
+    oak: { small: [], medium: [], large: [] },
+    pine: { small: [], medium: [], large: [] },
+  };
 }

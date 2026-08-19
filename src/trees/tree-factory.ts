@@ -20,6 +20,7 @@ import {
   HEDGE_TEMPLATES,
   TREE_TEMPLATES,
   type TreeSpecies,
+  type TreePresetSize,
   type TreeTemplate,
 } from './tree-templates';
 
@@ -28,6 +29,7 @@ export type { TreeGeometryPair, TreeLod } from './tree-geometry';
 export interface TreeVariant {
   readonly presetId: TreeTemplate['id'];
   readonly species: TreeSpecies;
+  readonly size: TreePresetSize;
   readonly lods: Readonly<Record<TreeLod, TreeGeometryPair>>;
   readonly branchMaterial: MeshPhongMaterial;
   readonly leafMaterial: MeshPhongMaterial;
@@ -55,6 +57,7 @@ function createVariant(template: TreeTemplate, seed: number, wind: WindUniforms)
   const variant = {
     presetId: template.id,
     species: template.species,
+    size: template.size,
     height: template.height,
     branchMaterial: createBranchMaterial(branchSource),
     leafMaterial: createLeafMaterial(leafSource, wind),

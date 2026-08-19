@@ -131,7 +131,7 @@ export class TreeVariantGenerator {
 }
 
 function getTemplateSlot(template: TreeTemplate): TreeVariantSlot {
-  return template.kind === 'hedge' ? 'hedge' : template.species;
+  return template.kind === 'hedge' ? 'hedge' : template.id;
 }
 
 function requireTemplate(id: TreePresetId): TreeTemplate {
