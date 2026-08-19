@@ -1,5 +1,5 @@
 /**
- * Generates deterministic curved hedge rows in absolute macro-cells and assigns each shrub to one terrain chunk.
+ * Distributes deterministic gapped hedge cohorts and two-dimensional shrub groups in absolute world space.
  * It owns placement only; geometry, LODs, and GPU capacity remain TreeSystem responsibilities.
  */
 
@@ -9,8 +9,10 @@ import { hashCoordinates, signedRandom, unitRandom } from '../core/random';
 import { SQUARE_METERS_PER_HECTARE } from '../ecology/landscape-population';
 import {
   createLandscapeZoneWeights,
+  getHedgePattern,
   getHedgeRowMetersPerHectare,
   getHedgeShrubSpacingMeters,
+  type HedgePattern,
   type LandscapeZoneWeights,
 } from '../ecology/landscape-zones';
 import { getTrailEnvelope, writeLandscapeZoneWeights, type LandscapeSurfaceSample } from '../ecology/landscape-ecology';
@@ -19,6 +21,7 @@ import { getChunkBounds } from '../world/chunk-coordinates';
 export interface HedgePlacement {
   readonly rowId: string;
   readonly pointIndex: number;
+  readonly pattern: HedgePattern;
   readonly x: number;
   readonly y: number;
   readonly z: number;
@@ -32,32 +35,31 @@ export interface HedgePlacement {
   readonly variant: number;
 }
 
-interface HedgeRow {
+interface HedgeCohort {
   readonly id: string;
   readonly hash: number;
   readonly centerX: number;
   readonly centerZ: number;
   readonly angle: number;
-  readonly length: number;
-  readonly bend: number;
+  readonly pattern: HedgePattern;
   readonly pointCount: number;
-  readonly variant: number;
+  readonly groupCount: number;
+  readonly baseVariant: number;
 }
 
 interface HedgePoint {
   readonly index: number;
-  readonly progress: number;
   readonly x: number;
   readonly z: number;
+  readonly rotation: number;
 }
 
 const MACRO_CELL_SIZE_METERS = 160;
 const HECTARES_PER_MACRO_CELL = MACRO_CELL_SIZE_METERS ** 2 / SQUARE_METERS_PER_HECTARE;
-const MINIMUM_ROW_LENGTH_METERS = 90;
-const ROW_LENGTH_VARIATION_METERS = 85;
-const ROW_REACH_METERS = MINIMUM_ROW_LENGTH_METERS + ROW_LENGTH_VARIATION_METERS;
+const COHORT_REACH_METERS = 150;
 const ROW_CENTER_JITTER_METERS = 24;
 const MAXIMUM_HEDGE_SLOPE_DEGREES = 20;
+const SITE_ATTEMPTS = 10;
 
 export class HedgeDistribution {
   private readonly cache = new Map<string, HedgePlacement[]>();
@@ -90,84 +92,99 @@ export class HedgeDistribution {
   private createChunkPlacements(chunkX: number, chunkZ: number): HedgePlacement[] {
     const bounds = getChunkBounds(chunkX, chunkZ);
     const placements: HedgePlacement[] = [];
-    const minimumMacroX = Math.floor((bounds.minimumX - ROW_REACH_METERS) / MACRO_CELL_SIZE_METERS);
-    const maximumMacroX = Math.floor((bounds.maximumX + ROW_REACH_METERS) / MACRO_CELL_SIZE_METERS);
-    const minimumMacroZ = Math.floor((bounds.minimumZ - ROW_REACH_METERS) / MACRO_CELL_SIZE_METERS);
-    const maximumMacroZ = Math.floor((bounds.maximumZ + ROW_REACH_METERS) / MACRO_CELL_SIZE_METERS);
+    const minimumMacroX = Math.floor((bounds.minimumX - COHORT_REACH_METERS) / MACRO_CELL_SIZE_METERS);
+    const maximumMacroX = Math.floor((bounds.maximumX + COHORT_REACH_METERS) / MACRO_CELL_SIZE_METERS);
+    const minimumMacroZ = Math.floor((bounds.minimumZ - COHORT_REACH_METERS) / MACRO_CELL_SIZE_METERS);
+    const maximumMacroZ = Math.floor((bounds.maximumZ + COHORT_REACH_METERS) / MACRO_CELL_SIZE_METERS);
     for (let macroZ = minimumMacroZ; macroZ <= maximumMacroZ; macroZ += 1) {
       for (let macroX = minimumMacroX; macroX <= maximumMacroX; macroX += 1) {
-        const row = this.createRow(macroX, macroZ);
-        if (row) this.appendRowPlacements(row, bounds, placements);
+        const cohort = this.createCohort(macroX, macroZ);
+        if (cohort) this.appendCohortPlacements(cohort, bounds, placements);
       }
     }
     return placements;
   }
 
-  private createRow(macroX: number, macroZ: number): HedgeRow | null {
+  private createCohort(macroX: number, macroZ: number): HedgeCohort | null {
     const hash = hashCoordinates(this.seed, macroX, macroZ);
     const centerX =
       (macroX + 0.5) * MACRO_CELL_SIZE_METERS + signedRandom(hashCoordinates(hash, 7, 11)) * ROW_CENTER_JITTER_METERS;
     const centerZ =
       (macroZ + 0.5) * MACRO_CELL_SIZE_METERS + signedRandom(hashCoordinates(hash, 13, 17)) * ROW_CENTER_JITTER_METERS;
     const zones = this.sampleZones(centerX, centerZ);
-    const length = MINIMUM_ROW_LENGTH_METERS + unitRandom(hashCoordinates(hash, 29, 31)) * ROW_LENGTH_VARIATION_METERS;
-    const targetMeters = getHedgeRowMetersPerHectare(zones) * HECTARES_PER_MACRO_CELL;
-    if (unitRandom(hashCoordinates(hash, 3, 5)) * length >= targetMeters) return null;
     const shrubSpacing = getHedgeShrubSpacingMeters(zones);
+    const targetCount = getHedgeRowMetersPerHectare(zones) * HECTARES_PER_MACRO_CELL / shrubSpacing;
+    const pointCount = stochasticRound(targetCount, unitRandom(hashCoordinates(hash, 3, 5)));
+    if (pointCount === 0) return null;
+    const pattern = getHedgePattern(zones);
     return {
       id: `${macroX}:${macroZ}`,
       hash,
       centerX,
       centerZ,
-      angle: unitRandom(hashCoordinates(hash, 19, 23)) * Math.PI * 2,
-      length,
-      bend: signedRandom(hashCoordinates(hash, 37, 41)) * 13,
-      pointCount: Math.max(2, Math.round(length / shrubSpacing) + 1),
-      variant: hash % this.variantCount,
+      angle: this.getCohortAngle(pattern, { x: centerX, z: centerZ }, hash),
+      pattern,
+      pointCount,
+      groupCount: getGroupCount(pattern, hash),
+      baseVariant: hash % this.variantCount,
     };
   }
 
-  private appendRowPlacements(
-    row: HedgeRow,
+  private getCohortAngle(
+    pattern: HedgePattern,
+    center: { readonly x: number; readonly z: number },
+    hash: number,
+  ): number {
+    const fallback = unitRandom(hashCoordinates(hash, 19, 23)) * Math.PI * 2;
+    if (pattern !== 'slopeGroup') return fallback;
+    const sampleDistance = 5;
+    const gradientX = this.heightField.getHeight(center.x + sampleDistance, center.z)
+      - this.heightField.getHeight(center.x - sampleDistance, center.z);
+    const gradientZ = this.heightField.getHeight(center.x, center.z + sampleDistance)
+      - this.heightField.getHeight(center.x, center.z - sampleDistance);
+    if (Math.hypot(gradientX, gradientZ) < 0.08) return fallback;
+    return Math.atan2(-gradientX, gradientZ);
+  }
+
+  private appendCohortPlacements(
+    cohort: HedgeCohort,
     bounds: ReturnType<typeof getChunkBounds>,
     target: HedgePlacement[],
   ): void {
-    const forwardX = Math.cos(row.angle);
-    const forwardZ = Math.sin(row.angle);
-    const sideX = -forwardZ;
-    const sideZ = forwardX;
-    for (let pointIndex = 0; pointIndex < row.pointCount; pointIndex += 1) {
-      if (unitRandom(hashCoordinates(row.hash, pointIndex, 0x51af)) < 0.14) continue;
-      const progress = pointIndex / (row.pointCount - 1);
-      const along = (progress - 0.5) * row.length;
-      const across = Math.sin(progress * Math.PI) * row.bend;
-      const x = row.centerX + forwardX * along + sideX * across;
-      const z = row.centerZ + forwardZ * along + sideZ * across;
-      if (!isInsideChunk(x, z, bounds)) continue;
-      const placement = this.createPlacement(row, { index: pointIndex, progress, x, z });
-      if (placement) target.push(placement);
+    for (let pointIndex = 0; pointIndex < cohort.pointCount; pointIndex += 1) {
+      const placement = this.findPlacement(cohort, pointIndex);
+      if (placement && isInsideChunk(placement.x, placement.z, bounds)) target.push(placement);
     }
   }
 
-  private createPlacement(row: HedgeRow, point: HedgePoint): HedgePlacement | null {
+  private findPlacement(cohort: HedgeCohort, pointIndex: number): HedgePlacement | null {
+    for (let attempt = 0; attempt < SITE_ATTEMPTS; attempt += 1) {
+      const point = createHedgePoint(cohort, pointIndex, attempt);
+      const placement = this.createPlacement(cohort, point);
+      if (placement) return placement;
+    }
+    return null;
+  }
+
+  private createPlacement(cohort: HedgeCohort, point: HedgePoint): HedgePlacement | null {
     this.sampleZones(point.x, point.z);
     if (!this.acceptsSite()) return null;
-    const hash = hashCoordinates(row.hash, point.index, 0x713d);
-    const curveRotation = Math.cos(point.progress * Math.PI) * row.bend * 0.011;
+    const hash = hashCoordinates(cohort.hash, point.index, 0x713d);
     return {
-      rowId: row.id,
+      rowId: cohort.id,
       pointIndex: point.index,
+      pattern: cohort.pattern,
       x: point.x,
       y: this.surface.heightMeters,
       z: point.z,
-      rotation: row.angle + curveRotation + signedRandom(hashCoordinates(hash, 3, 5)) * 0.08,
+      rotation: point.rotation + signedRandom(hashCoordinates(hash, 3, 5)) * 0.12,
       scale: 0.82 + unitRandom(hashCoordinates(hash, 7, 11)) * 0.36,
       widthScale: 1.05 + unitRandom(hashCoordinates(hash, 13, 17)) * 0.3,
       depthScale: 0.62 + unitRandom(hashCoordinates(hash, 19, 23)) * 0.24,
       windPhase: unitRandom(hashCoordinates(hash, 29, 31)) * Math.PI * 2,
       windStrength: 0.55 + unitRandom(hashCoordinates(hash, 37, 41)) * 0.35,
       tint: unitRandom(hashCoordinates(hash, 43, 47)),
-      variant: row.variant,
+      variant: chooseHedgeVariant(cohort, point.index, this.variantCount),
     };
   }
 
@@ -184,6 +201,82 @@ export class HedgeDistribution {
     if (getTrailEnvelope(this.surface) > 0.08) return false;
     return getHedgeRowMetersPerHectare(this.zones) > 0;
   }
+}
+
+function createHedgePoint(cohort: HedgeCohort, pointIndex: number, attempt: number): HedgePoint {
+  const point = cohort.pattern === 'fieldHedge' || cohort.pattern === 'brokenRow'
+    ? createSegmentPoint(cohort, pointIndex)
+    : createGroupPoint(cohort, pointIndex);
+  const retryRadius = attempt * 4;
+  const hash = hashCoordinates(cohort.hash, pointIndex, attempt, 0x51af);
+  return {
+    ...point,
+    x: point.x + signedRandom(hashCoordinates(hash, 3, 5)) * retryRadius,
+    z: point.z + signedRandom(hashCoordinates(hash, 7, 11)) * retryRadius,
+  };
+}
+
+function createSegmentPoint(cohort: HedgeCohort, pointIndex: number): HedgePoint {
+  const groupCapacity = Math.ceil(cohort.pointCount / cohort.groupCount);
+  const groupIndex = Math.min(Math.floor(pointIndex / groupCapacity), cohort.groupCount - 1);
+  const localIndex = pointIndex - groupIndex * groupCapacity;
+  const pointsInGroup = Math.min(groupCapacity, cohort.pointCount - groupIndex * groupCapacity);
+  const localProgress = pointsInGroup <= 1 ? 0.5 : localIndex / (pointsInGroup - 1);
+  const broken = cohort.pattern === 'brokenRow';
+  const stride = (groupCapacity - 1) * 2.6 + (broken ? 16 : 10);
+  const along = (groupIndex - (cohort.groupCount - 1) * 0.5) * stride + (localProgress - 0.5) * (pointsInGroup - 1) * 2.6;
+  const hash = hashCoordinates(cohort.hash, pointIndex, 0x62bf);
+  const across = signedRandom(hashCoordinates(hash, 3, 5)) * (broken ? 4.5 : 2.4);
+  return projectPoint(cohort, pointIndex, { along, across, rotation: cohort.angle });
+}
+
+function createGroupPoint(cohort: HedgeCohort, pointIndex: number): HedgePoint {
+  const groupIndex = pointIndex % cohort.groupCount;
+  const groupOffset = groupIndex - (cohort.groupCount - 1) * 0.5;
+  const hash = hashCoordinates(cohort.hash, pointIndex, 0x73cf);
+  const radius = Math.sqrt(unitRandom(hashCoordinates(hash, 3, 5)));
+  const angle = unitRandom(hashCoordinates(hash, 7, 11)) * Math.PI * 2;
+  const alongRadius = cohort.pattern === 'thicket' ? 11 : 15;
+  const acrossRadius = cohort.pattern === 'thicket' ? 9 : 6;
+  const along = groupOffset * 18 + Math.cos(angle) * radius * alongRadius;
+  const across = Math.sin(groupIndex * 2.1) * 7 + Math.sin(angle) * radius * acrossRadius;
+  const rotation = cohort.pattern === 'slopeGroup' ? cohort.angle : cohort.angle + angle;
+  return projectPoint(cohort, pointIndex, { along, across, rotation });
+}
+
+function projectPoint(
+  cohort: HedgeCohort,
+  pointIndex: number,
+  offset: { readonly along: number; readonly across: number; readonly rotation: number },
+): HedgePoint {
+  const forwardX = Math.cos(cohort.angle);
+  const forwardZ = Math.sin(cohort.angle);
+  return {
+    index: pointIndex,
+    x: cohort.centerX + forwardX * offset.along - forwardZ * offset.across,
+    z: cohort.centerZ + forwardZ * offset.along + forwardX * offset.across,
+    rotation: offset.rotation,
+  };
+}
+
+function getGroupCount(pattern: HedgePattern, hash: number): number {
+  const minimum = pattern === 'fieldHedge' ? 2 : pattern === 'brokenRow' ? 3 : 2;
+  const variation = pattern === 'fieldHedge' ? 2 : 3;
+  return minimum + (hashCoordinates(hash, 43, 47) % variation);
+}
+
+function stochasticRound(value: number, selection: number): number {
+  const floor = Math.floor(value);
+  return floor + (selection < value - floor ? 1 : 0);
+}
+
+function chooseHedgeVariant(cohort: HedgeCohort, pointIndex: number, variantCount: number): number {
+  if (variantCount === 1) return 0;
+  const hash = hashCoordinates(cohort.hash, pointIndex, 0x84df);
+  const selection = unitRandom(hashCoordinates(hash, 3, 5));
+  if (selection < 0.55) return cohort.baseVariant;
+  if (selection < 0.82) return (cohort.baseVariant + 1) % variantCount;
+  return hashCoordinates(hash, 7, 11) % variantCount;
 }
 
 function isInsideChunk(x: number, z: number, bounds: ReturnType<typeof getChunkBounds>): boolean {

@@ -9,8 +9,7 @@ import {
   Group,
   InstancedBufferAttribute,
   Matrix4,
-  MeshPhongMaterial,
-  type MeshStandardMaterial,
+  MeshStandardMaterial,
   Quaternion,
   Vector3,
   type InstancedMesh,
@@ -36,6 +35,7 @@ import {
   createDynamicScalarAttribute,
   finaliseInstancedMesh,
 } from '../rendering/update-instanced-attributes';
+import { createWindDepthMaterial } from '../rendering/wind-depth-material';
 import type { HeightField } from '../core/height-field';
 import type { WindUniforms } from '../wind/wind-field';
 import { createGrassMaterial, prepareGrassGeometry, prepareMeadowGeometry } from './grass-material';
@@ -46,7 +46,7 @@ const IDENTITY_ROTATION = new Quaternion();
 const GRASS_CANDIDATES_PER_FRAME = 160;
 
 interface GrassBatch {
-  readonly mesh: InstancedMesh<BufferGeometry, MeshPhongMaterial | MeshPhongMaterial[]>;
+  readonly mesh: InstancedMesh<BufferGeometry, MeshStandardMaterial | MeshStandardMaterial[]>;
   readonly rotation: InstancedBufferAttribute;
   readonly phase: InstancedBufferAttribute;
   readonly strength: InstancedBufferAttribute;
@@ -155,6 +155,7 @@ export class GrassSystem {
       batch.mesh.geometry.dispose();
       const materials = Array.isArray(batch.mesh.material) ? batch.mesh.material : [batch.mesh.material];
       materials.forEach((material) => material.dispose());
+      batch.mesh.customDepthMaterial?.dispose();
     }
     this.group.clear();
   }
@@ -285,7 +286,9 @@ export class GrassSystem {
       material,
       source.capacity,
     );
+    mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.customDepthMaterial = createWindDepthMaterial(grassMaterials[0]!);
     return { mesh, rotation, phase, strength };
   }
 

@@ -20,7 +20,7 @@ export function createLeafMaterial(
 ): MeshStandardMaterial {
   const material = source.clone();
   material.emissive.set('#385332');
-  material.emissiveIntensity = 0.16;
+  material.emissiveIntensity = 0.06;
   material.alphaToCoverage = true;
   material.dithering = true;
   material.vertexColors = true;
@@ -29,6 +29,7 @@ export function createLeafMaterial(
     shader.uniforms.uCustomNormals = { value: roundedNormals };
     shader.vertexShader = `${WIND_INSTANCE_GLSL}\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', leafProjectionShader);
+    shader.vertexShader = shader.vertexShader.replace('#include <worldpos_vertex>', leafWorldPositionShader);
     shader.fragmentShader = `uniform bool uCustomNormals;\n${shader.fragmentShader.replace(
       '#include <normal_fragment_begin>',
       ShaderChunk.normal_fragment_begin.replace(
@@ -37,7 +38,7 @@ export function createLeafMaterial(
       ),
     )}`;
   };
-  material.customProgramCacheKey = () => `endless-wilds-ez-tree-leaf-v5-${roundedNormals}`;
+  material.customProgramCacheKey = () => `endless-wilds-ez-tree-leaf-v6-${roundedNormals}`;
   return material;
 }
 
@@ -51,4 +52,9 @@ vec2 sway = uGlobalWindDirection * wave * uGlobalWindAmplitude * uGlobalGust
 instancePosition.xz += sway;
 vec4 mvPosition = modelViewMatrix * instancePosition;
 gl_Position = projectionMatrix * mvPosition;
+`;
+
+// Shadow receiving and environment calculations must use the same swayed position as the visible vertex.
+const leafWorldPositionShader = /* glsl */ `
+vec4 worldPosition = modelMatrix * instancePosition;
 `;

@@ -18,6 +18,7 @@ import {
 } from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { RENDERING } from '../config';
+import { DirectionalShadowSnapper } from './directional-shadow-snapper';
 
 const SUN_POLAR_ANGLE = MathUtils.degToRad(68);
 const SUN_AZIMUTH = MathUtils.degToRad(210);
@@ -28,9 +29,16 @@ export class Environment {
   private readonly sun = new DirectionalLight('#fff0cf', 4.5);
   private readonly target = new Object3D();
   private readonly sunDirection: Vector3;
+  private readonly shadowCenter = new Vector3();
+  private readonly shadowSnapper: DirectionalShadowSnapper;
 
   public constructor(scene: Scene) {
     this.sunDirection = new Vector3().setFromSpherical(new Spherical(1, SUN_POLAR_ANGLE, SUN_AZIMUTH));
+    this.shadowSnapper = new DirectionalShadowSnapper(
+      this.sunDirection,
+      RENDERING.shadowDistance,
+      RENDERING.shadowMapSize,
+    );
     this.configureSky();
     this.configureSun();
     this.group.add(this.sky, this.sun, this.target);
@@ -43,14 +51,16 @@ export class Environment {
   public update(camera: PerspectiveCamera): void {
     // Move one bounded shadow volume with the viewer instead of shadowing the entire streamed world.
     this.sky.position.copy(camera.position);
-    this.target.position.copy(camera.position);
-    this.target.position.y -= 80;
-    this.target.position.z -= 20;
-    this.sun.position.copy(camera.position).addScaledVector(this.sunDirection, 420);
+    this.shadowCenter.copy(camera.position);
+    this.shadowCenter.y -= 80;
+    this.shadowCenter.z -= 20;
+    this.shadowSnapper.snap(this.shadowCenter, this.target.position);
+    this.sun.position.copy(this.target.position).addScaledVector(this.sunDirection, 420);
     this.target.updateMatrixWorld();
   }
 
   public dispose(): void {
+    this.sun.shadow.dispose();
     this.sky.geometry.dispose();
     this.sky.material.dispose();
     this.group.removeFromParent();
@@ -78,7 +88,8 @@ export class Environment {
     camera.bottom = -RENDERING.shadowDistance;
     camera.near = 20;
     camera.far = 780;
-    shadow.bias = -0.00018;
-    shadow.normalBias = 0.035;
+    camera.updateProjectionMatrix();
+    shadow.bias = -0.00002;
+    shadow.normalBias = 0.04;
   }
 }

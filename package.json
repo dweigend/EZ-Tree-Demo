@@ -7,7 +7,7 @@
     "assets:all": "bun run assets:atlas",
     "assets:atlas": "bun run scripts/build-terrain-atlas.ts",
     "assets:patina": "bun run scripts/generate-patina-materials.ts",
-    "assets:references": "python3 \"${CODEX_HOME:-$HOME/.codex}/skills/.system/imagegen/scripts/image_gen.py\" generate-batch --input assets/source/terrain-materials/prompts.jsonl --out-dir assets/source/terrain-materials/references --model gpt-image-2 --size 1024x1024 --quality medium --concurrency 3 --no-augment",
+    "assets:references": "python3 \"${CODEX_HOME:-$HOME/.codex}/skills/.system/imagegen/scripts/image_gen.py\" generate-batch --input assets/source/landscape/terrain-materials/prompts.jsonl --out-dir assets/source/landscape/terrain-materials/references --model gpt-image-2 --size 1024x1024 --quality medium --concurrency 3 --no-augment",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "check": "tsc --noEmit",

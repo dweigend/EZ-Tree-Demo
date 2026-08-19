@@ -1,0 +1,146 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "baseColors": {
+    "meadow": [0.24, 0.36, 0.12],
+    "mud": [0.16, 0.1, 0.055],
+    "dryForest": [0.38, 0.2, 0.085],
+    "mossForest": [0.18, 0.29, 0.1],
+    "forest": [0.3, 0.235, 0.12],
+    "pineForest": [0.15, 0.205, 0.115],
+    "rock": [0.31, 0.305, 0.285],
+    "trail": [0.48, 0.35, 0.2]
+  },
+  "zones": {
+    "meadow": [
+      { "surface": "meadow", "coveragePercent": 96 },
+      { "surface": "forest", "coveragePercent": 4 }
+    ],
+    "wetLowland": [
+      { "surface": "meadow", "coveragePercent": 20 },
+      { "surface": "mud", "coveragePercent": 50 },
+      { "surface": "mossForest", "coveragePercent": 30 }
+    ],
+    "dryBroadleaf": [
+      { "surface": "dryForest", "coveragePercent": 85 },
+      { "surface": "forest", "coveragePercent": 15 }
+    ],
+    "moistBroadleaf": [
+      { "surface": "mossForest", "coveragePercent": 65 },
+      { "surface": "forest", "coveragePercent": 35 }
+    ],
+    "coniferHighland": [
+      { "surface": "pineForest", "coveragePercent": 90 },
+      { "surface": "rock", "coveragePercent": 10 }
+    ],
+    "rockyRidge": [
+      { "surface": "rock", "coveragePercent": 100 }
+    ]
+  },
+  "materials": [
+    {
+      "slot": "meadow",
+      "asset": "leafy_grass",
+      "name": "Leafy Grass",
+      "author": "Charlotte Baglioni",
+      "tileMeters": 8,
+      "maps": {
+        "basecolor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_diff_1k.jpg",
+        "normal": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_nor_gl_1k.jpg",
+        "height": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_disp_1k.jpg",
+        "roughness": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_rough_1k.jpg"
+      }
+    },
+    {
+      "slot": "mud",
+      "asset": "brown_mud_02",
+      "name": "Brown Mud 02",
+      "author": "Rob Tuytel",
+      "tileMeters": 10,
+      "maps": {
+        "basecolor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/brown_mud_02/brown_mud_02_diff_1k.jpg",
+        "normal": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/brown_mud_02/brown_mud_02_nor_gl_1k.jpg",
+        "height": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/brown_mud_02/brown_mud_02_disp_1k.jpg",
+        "roughness": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/brown_mud_02/brown_mud_02_rough_1k.jpg"
+      }
+    },
+    {
+      "slot": "dryForest",
+      "asset": "dry_decay_leaves",
+      "name": "Dry Decay Leaves",
+      "author": "Amal Kumar",
+      "tileMeters": 8,
+      "maps": {
+        "basecolor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dry_decay_leaves/dry_decay_leaves_diff_1k.jpg",
+        "normal": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dry_decay_leaves/dry_decay_leaves_nor_gl_1k.jpg",
+        "height": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dry_decay_leaves/dry_decay_leaves_disp_1k.jpg",
+        "roughness": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dry_decay_leaves/dry_decay_leaves_rough_1k.jpg"
+      }
+    },
+    {
+      "slot": "mossForest",
+      "asset": "forest_leaves_02",
+      "name": "Forest Leaves 02",
+      "author": "Rob Tuytel",
+      "tileMeters": 10,
+      "maps": {
+        "basecolor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_leaves_02/forest_leaves_02_diffuse_1k.jpg",
+        "normal": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_leaves_02/forest_leaves_02_nor_gl_1k.jpg",
+        "height": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_leaves_02/forest_leaves_02_disp_1k.jpg",
+        "roughness": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_leaves_02/forest_leaves_02_rough_1k.jpg"
+      }
+    },
+    {
+      "slot": "forest",
+      "asset": "forrest_ground_01",
+      "name": "Forest Ground 01",
+      "author": "Rob Tuytel",
+      "tileMeters": 12,
+      "maps": {
+        "basecolor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_01/forrest_ground_01_diff_1k.jpg",
+        "normal": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_01/forrest_ground_01_nor_gl_1k.jpg",
+        "height": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_01/forrest_ground_01_disp_1k.jpg",
+        "roughness": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_01/forrest_ground_01_rough_1k.jpg"
+      }
+    },
+    {
+      "slot": "pineForest",
+      "asset": "forrest_ground_03",
+      "name": "Forest Ground 03",
+      "author": "Rob Tuytel",
+      "tileMeters": 9,
+      "maps": {
+        "basecolor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_03/forrest_ground_03_diff_1k.jpg",
+        "normal": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_03/forrest_ground_03_nor_gl_1k.jpg",
+        "height": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_03/forrest_ground_03_disp_1k.jpg",
+        "roughness": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_03/forrest_ground_03_rough_1k.jpg"
+      }
+    },
+    {
+      "slot": "rock",
+      "asset": "rocky_terrain_03",
+      "name": "Rocky Terrain 03",
+      "author": "Amal Kumar",
+      "tileMeters": 42,
+      "maps": {
+        "basecolor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_terrain_03/rocky_terrain_03_diff_1k.jpg",
+        "normal": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_terrain_03/rocky_terrain_03_nor_gl_1k.jpg",
+        "height": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_terrain_03/rocky_terrain_03_disp_1k.jpg",
+        "roughness": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_terrain_03/rocky_terrain_03_rough_1k.jpg"
+      }
+    },
+    {
+      "slot": "trail",
+      "asset": "rocky_trail",
+      "name": "Rocky Trail",
+      "author": "Amal Kumar",
+      "tileMeters": 8,
+      "maps": {
+        "basecolor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_trail/rocky_trail_diff_1k.jpg",
+        "normal": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_trail/rocky_trail_nor_gl_1k.jpg",
+        "height": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_trail/rocky_trail_disp_1k.jpg",
+        "roughness": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_trail/rocky_trail_rough_1k.jpg"
+      }
+    }
+  ]
+}

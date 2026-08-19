@@ -3,9 +3,11 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { TERRAIN, WORLD_SEED } from '../src/config';
+import { TERRAIN, VEGETATION, WORLD_SEED } from '../src/config';
 import { HeightField } from '../src/core/height-field';
 import { hashString } from '../src/core/random';
+import { writeLandscapeZoneWeights } from '../src/ecology/landscape-ecology';
+import { createLandscapeZoneWeights, getPopulationDensityPerHectare } from '../src/ecology/landscape-zones';
 import { ForestDistribution, type TreePlacement } from '../src/trees/forest-distribution';
 import type { TreeSize, TreeSpecies } from '../src/trees/tree-templates';
 
@@ -21,7 +23,7 @@ describe('forest distribution', () => {
     const second = distribution.getChunkPlacements(0, 0);
     expect(second).toEqual(first);
     const chunkHectares = TERRAIN.chunkSize ** 2 / 10_000;
-    expect(first.length).toBeLessThanOrEqual(Math.ceil(chunkHectares * 24));
+    expect(first.length).toBeLessThanOrEqual(Math.ceil(chunkHectares * 72));
   });
 
   test('assigns each absolute-world candidate to one chunk only', () => {
@@ -29,6 +31,30 @@ describe('forest distribution', () => {
     const right = distribution.getChunkPlacements(1, 0);
     const leftKeys = new Set(left.map(positionKey));
     expect(right.some((placement) => leftKeys.has(positionKey(placement)))).toBeFalse();
+  });
+
+  test('keeps the PICO density as a stable subset of desktop candidates', () => {
+    const seed = hashString('forest-profile-subset');
+    const desktop = new ForestDistribution(heightField, seed, variants, 24);
+    const pico = new ForestDistribution(heightField, seed, variants, 20);
+    const desktopPlacements = getPlacementsFor(desktop, -2, 2);
+    const desktopByPosition = new Map(desktopPlacements.map((placement) => [positionKey(placement), placement]));
+    const picoPlacements = getPlacementsFor(pico, -2, 2);
+    expect(picoPlacements.length).toBeLessThan(desktopPlacements.length);
+    expect(picoPlacements.every((placement) => desktopByPosition.has(positionKey(placement)))).toBeTrue();
+    expect(picoPlacements.map((placement) => desktopByPosition.get(positionKey(placement)))).toEqual(picoPlacements);
+  });
+
+  test('preserves authored mean density while creating clearings and dense local patches', () => {
+    const placements = getPlacements(-6, 6);
+    const expectedCount = estimateExpectedTreeCount(-6, 6);
+    expect(placements.length / expectedCount).toBeWithin(0.9, 1.1);
+
+    const localDensities = getLocalDensities(placements, -2_000, 2_000, 100);
+    const emptyShare = localDensities.filter((density) => density <= 2).length / localDensities.length;
+    expect(emptyShare).toBeWithin(0.25, 0.41);
+    expect(Math.max(...localDensities)).toBeGreaterThan(40);
+    expect(percentile(localDensities, 0.9) - percentile(localDensities, 0.1)).toBeGreaterThan(20);
   });
 
   test('uses distinct size cohorts while keeping every placement on its species template', () => {
@@ -64,13 +90,64 @@ interface SlopePatternStats {
 }
 
 function getPlacements(minimumChunk: number, maximumChunk: number): TreePlacement[] {
+  return getPlacementsFor(distribution, minimumChunk, maximumChunk);
+}
+
+function getPlacementsFor(
+  source: ForestDistribution,
+  minimumChunk: number,
+  maximumChunk: number,
+): TreePlacement[] {
   const placements: TreePlacement[] = [];
   for (let chunkZ = minimumChunk; chunkZ <= maximumChunk; chunkZ += 1) {
     for (let chunkX = minimumChunk; chunkX <= maximumChunk; chunkX += 1) {
-      placements.push(...distribution.getChunkPlacements(chunkX, chunkZ));
+      placements.push(...source.getChunkPlacements(chunkX, chunkZ));
     }
   }
   return placements;
+}
+
+function estimateExpectedTreeCount(minimumChunk: number, maximumChunk: number): number {
+  const minimum = minimumChunk * TERRAIN.chunkSize - TERRAIN.chunkSize / 2;
+  const maximum = maximumChunk * TERRAIN.chunkSize + TERRAIN.chunkSize / 2;
+  const sampleSize = 80;
+  const zones = createLandscapeZoneWeights();
+  let expected = 0;
+  for (let z = minimum + sampleSize / 2; z < maximum; z += sampleSize) {
+    for (let x = minimum + sampleSize / 2; x < maximum; x += sampleSize) {
+      const surface = {
+        x,
+        z,
+        heightMeters: heightField.getHeight(x, z),
+        slopeDegrees: heightField.getSlopeDegrees(x, z),
+      };
+      writeLandscapeZoneWeights(heightField, surface, zones);
+      const density = Math.min(getPopulationDensityPerHectare(zones, 'trees'), VEGETATION.maximumTreeDensityPerHectare);
+      expected += density * sampleSize ** 2 / 10_000;
+    }
+  }
+  return expected;
+}
+
+function getLocalDensities(
+  placements: readonly TreePlacement[],
+  minimum: number,
+  maximum: number,
+  sampleSize: number,
+): number[] {
+  const side = Math.floor((maximum - minimum) / sampleSize);
+  const counts = Array<number>(side ** 2).fill(0);
+  for (const placement of placements) {
+    const x = Math.floor((placement.x - minimum) / sampleSize);
+    const z = Math.floor((placement.z - minimum) / sampleSize);
+    if (x >= 0 && x < side && z >= 0 && z < side) counts[z * side + x]! += 1;
+  }
+  return counts.map((count) => count * 10_000 / sampleSize ** 2);
+}
+
+function percentile(values: readonly number[], share: number): number {
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.floor((sorted.length - 1) * share)]!;
 }
 
 function analyseNeighbourPatterns(placements: readonly TreePlacement[]): NeighbourPatternStats {

@@ -20,6 +20,8 @@ describe('landscape zone catalog', () => {
   test('defines complete, non-negative zone contents with full ground coverage', () => {
     expect(Object.keys(LANDSCAPE_ZONES)).toEqual([...LANDSCAPE_ZONE_IDS]);
     for (const zone of Object.values(LANDSCAPE_ZONES)) {
+      expect(zone.treePattern.length).toBeGreaterThan(0);
+      expect(zone.hedges.pattern.length).toBeGreaterThan(0);
       expect(zone.ground.reduce((total, entry) => total + entry.coveragePercent, 0)).toBe(100);
       for (const population of [zone.trees, zone.grass, zone.rocks]) {
         expect(population.every((entry) => entry.instancesPerHectare >= 0)).toBeTrue();
@@ -28,6 +30,12 @@ describe('landscape zone catalog', () => {
       expect(zone.hedges.rowMetersPerHectare).toBeGreaterThanOrEqual(0);
       expect(zone.hedges.shrubSpacingMeters).toBeGreaterThan(0);
     }
+    expect(new Set(Object.values(LANDSCAPE_ZONES).map((zone) => zone.treePattern))).toEqual(
+      new Set(['scattered', 'grove', 'closed', 'coniferStand']),
+    );
+    expect(new Set(Object.values(LANDSCAPE_ZONES).map((zone) => zone.hedges.pattern))).toEqual(
+      new Set(['fieldHedge', 'brokenRow', 'thicket', 'slopeGroup']),
+    );
   });
 
   test('exposes authored physical densities for pure zones', () => {
@@ -37,11 +45,11 @@ describe('landscape zone catalog', () => {
     expect(getPopulationDensityPerHectare(meadow, 'rocks')).toBe(3);
     expect(getHedgeRowMetersPerHectare(meadow)).toBe(20);
     expect(writeTerrainCoverage(meadow, createTerrainCoverage())).toEqual({
-      meadow: 0.92,
+      meadow: 0.96,
       mud: 0,
       dryForest: 0,
       mossForest: 0,
-      forest: 0.08,
+      forest: 0.04,
       pineForest: 0,
       rock: 0,
     });

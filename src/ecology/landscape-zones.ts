@@ -25,6 +25,8 @@ export { TERRAIN_SURFACE_IDS };
 export type { TerrainSurfaceId };
 export type GrassKind = 'meadowPatch' | 'grassTuft';
 export type RockKind = 'rock';
+export type TreePattern = 'scattered' | 'grove' | 'closed' | 'coniferStand';
+export type HedgePattern = 'fieldHedge' | 'brokenRow' | 'thicket' | 'slopeGroup';
 export type AreaPopulationKind = 'trees' | 'grass' | 'rocks';
 export type AreaPopulationType = TreeSpecies | GrassKind | RockKind;
 
@@ -46,12 +48,14 @@ export type GroundCoverage = TerrainZoneCoverage;
 
 export interface HedgePopulation {
   readonly type: 'shrubRow';
+  readonly pattern: HedgePattern;
   readonly rowMetersPerHectare: number;
   readonly shrubSpacingMeters: number;
 }
 
 export interface LandscapeZoneDefinition {
   readonly ground: readonly GroundCoverage[];
+  readonly treePattern: TreePattern;
   readonly trees: readonly PopulationEntry<TreeSpecies>[];
   readonly grass: readonly PopulationEntry<GrassKind>[];
   readonly rocks: readonly PopulationEntry<RockKind>[];
@@ -71,55 +75,61 @@ export interface TerrainCoverage {
 /** Open, flat ground with isolated oaks and the highest grass density. */
 const meadow = {
   ground: TERRAIN_ZONE_COVERAGE.meadow,
+  treePattern: 'scattered',
   trees: [population('oak', 1)],
   grass: [population('meadowPatch', 4), population('grassTuft', 12)],
   rocks: [population('rock', 3)],
-  hedges: hedge(20),
+  hedges: hedge('fieldHedge', 20),
 } as const satisfies LandscapeZoneDefinition;
 
 /** Moist, flat lowlands with aspen, ash, mud, and soft forest litter. */
 const wetLowland = {
   ground: TERRAIN_ZONE_COVERAGE.wetLowland,
+  treePattern: 'grove',
   trees: [population('aspen', 8), population('ash', 3)],
   grass: [population('meadowPatch', 3), population('grassTuft', 8)],
   rocks: [population('rock', 2)],
-  hedges: hedge(30),
+  hedges: hedge('thicket', 30),
 } as const satisfies LandscapeZoneDefinition;
 
 /** Dry woodland dominated by oaks with sparse grass and occasional rocks. */
 const dryBroadleaf = {
   ground: TERRAIN_ZONE_COVERAGE.dryBroadleaf,
+  treePattern: 'closed',
   trees: [population('oak', 22), population('ash', 2)],
   grass: [population('meadowPatch', 1), population('grassTuft', 4)],
   rocks: [population('rock', 5)],
-  hedges: hedge(25),
+  hedges: hedge('brokenRow', 25),
 } as const satisfies LandscapeZoneDefinition;
 
 /** Moist deciduous woodland shared by ash, aspen, and a few oaks. */
 const moistBroadleaf = {
   ground: TERRAIN_ZONE_COVERAGE.moistBroadleaf,
+  treePattern: 'grove',
   trees: [population('ash', 12), population('aspen', 10), population('oak', 2)],
   grass: [population('meadowPatch', 1), population('grassTuft', 5)],
   rocks: [population('rock', 3)],
-  hedges: hedge(25),
+  hedges: hedge('thicket', 25),
 } as const satisfies LandscapeZoneDefinition;
 
 /** Elevated conifer woodland with exposed rock and little ground vegetation. */
 const coniferHighland = {
   ground: TERRAIN_ZONE_COVERAGE.coniferHighland,
+  treePattern: 'coniferStand',
   trees: [population('pine', 22)],
   grass: [population('meadowPatch', 0.5), population('grassTuft', 3)],
   rocks: [population('rock', 12)],
-  hedges: hedge(5),
+  hedges: hedge('slopeGroup', 5),
 } as const satisfies LandscapeZoneDefinition;
 
 /** High or steep exposed terrain with rocks, rare pines, and no hedges. */
 const rockyRidge = {
   ground: TERRAIN_ZONE_COVERAGE.rockyRidge,
+  treePattern: 'scattered',
   trees: [population('pine', 2)],
   grass: [population('grassTuft', 1)],
   rocks: [population('rock', 24)],
-  hedges: hedge(0),
+  hedges: hedge('slopeGroup', 0),
 } as const satisfies LandscapeZoneDefinition;
 
 export const LANDSCAPE_ZONES = {
@@ -234,14 +244,28 @@ export function getHedgeShrubSpacingMeters(weights: LandscapeZoneWeights): numbe
   return weightedSpacing / rowMeters;
 }
 
+export function getTreePattern(weights: LandscapeZoneWeights): TreePattern {
+  return LANDSCAPE_ZONES[getDominantZone(weights)].treePattern;
+}
+
+export function getHedgePattern(weights: LandscapeZoneWeights): HedgePattern {
+  return LANDSCAPE_ZONES[getDominantZone(weights)].hedges.pattern;
+}
+
 function population<Type extends string>(type: Type, instancesPerHectare: number): PopulationEntry<Type> {
   return { type, instancesPerHectare };
 }
 
-function hedge(rowMetersPerHectare: number): HedgePopulation {
-  return { type: 'shrubRow', rowMetersPerHectare, shrubSpacingMeters: 3.5 };
+function hedge(pattern: HedgePattern, rowMetersPerHectare: number): HedgePopulation {
+  return { type: 'shrubRow', pattern, rowMetersPerHectare, shrubSpacingMeters: 3.5 };
 }
 
 function sumPopulation(entries: readonly PopulationEntry<string>[]): number {
   return entries.reduce((total, entry) => total + entry.instancesPerHectare, 0);
+}
+
+function getDominantZone(weights: LandscapeZoneWeights): LandscapeZoneId {
+  return LANDSCAPE_ZONE_IDS.reduce((dominant, zoneId) => {
+    return weights[zoneId] > weights[dominant] ? zoneId : dominant;
+  });
 }

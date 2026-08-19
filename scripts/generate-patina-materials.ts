@@ -28,7 +28,7 @@ interface PatinaResult {
 const REQUIRED_MAPS = ['basecolor', 'normal', 'roughness'] as const;
 
 const repoRoot = path.resolve(import.meta.dir, '..');
-const sourceRoot = path.join(repoRoot, 'assets/source/terrain-materials');
+const sourceRoot = path.join(repoRoot, 'assets/source/landscape/terrain-materials');
 const outputRoot = path.join(repoRoot, 'output/materials');
 const jobs = await readJobs(path.join(sourceRoot, 'prompts.jsonl'));
 const falKey = process.env.FAL_KEY;

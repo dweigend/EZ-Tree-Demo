@@ -13,7 +13,6 @@ import {
   Texture,
   TextureLoader,
 } from 'three';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { QUALITY_PROFILE } from '../config';
@@ -25,6 +24,7 @@ import {
   type TreeTextureAssets,
 } from '../trees/tree-textures';
 import type { TreeSpecies } from '../trees/tree-templates';
+import { LANDSCAPE_ASSET_CATALOG } from './landscape-asset-catalog';
 
 export interface InstancedModelAsset {
   readonly geometry: BufferGeometry;
@@ -33,9 +33,10 @@ export interface InstancedModelAsset {
 
 export interface GroundTextureAssets {
   readonly albedoAtlas: Texture;
-  readonly normalAtlas: Texture;
+  readonly surfaceAtlas: Texture;
   readonly tileMeters: TerrainLayerValues;
   readonly atlasSize: number;
+  readonly parallaxMeters: number;
 }
 
 export type TerrainLayerValues = readonly [number, number, number, number, number, number, number, number];
@@ -53,32 +54,23 @@ interface ModelPart {
   readonly material: MeshStandardMaterial;
 }
 
-const VEGETATION_PATH = '/assets/vegetation';
-const ROCK_PATH = '/assets/rocks';
-const TERRAIN_PATH = '/assets/terrain';
-const TREE_PATH = '/assets/trees';
-
 export async function loadLandscapeAssets(): Promise<LandscapeAssets> {
-  const dracoLoader = new DRACOLoader().setDecoderPath('/assets/draco/');
-  const modelLoader = new GLTFLoader().setDRACOLoader(dracoLoader);
-  try {
-    const [ground, trees, meadowPatch, grassTuft, rock1, rock2, rock3] = await Promise.all([
-      loadGroundTextures(),
-      loadTreeTextures(),
-      loadModel(modelLoader, `${VEGETATION_PATH}/grass-patch.glb`),
-      loadModel(modelLoader, `${VEGETATION_PATH}/grass-tuft.glb`),
-      loadModel(modelLoader, `${ROCK_PATH}/rock1.glb`),
-      loadModel(modelLoader, `${ROCK_PATH}/rock2.glb`),
-      loadModel(modelLoader, `${ROCK_PATH}/rock3.glb`),
-    ]);
-    return { ground, trees, meadowPatch, grassTuft, rocks: [rock1, rock2, rock3] };
-  } finally {
-    dracoLoader.dispose();
-  }
+  const modelLoader = new GLTFLoader();
+  const models = LANDSCAPE_ASSET_CATALOG.models;
+  const [ground, trees, meadowPatch, grassTuft, rock1, rock2, rock3] = await Promise.all([
+    loadGroundTextures(),
+    loadTreeTextures(),
+    loadModel(modelLoader, models.meadowPatch),
+    loadModel(modelLoader, models.grassTuft),
+    loadModel(modelLoader, models.rocks[0]),
+    loadModel(modelLoader, models.rocks[1]),
+    loadModel(modelLoader, models.rocks[2]),
+  ]);
+  return { ground, trees, meadowPatch, grassTuft, rocks: [rock1, rock2, rock3] };
 }
 
 export function disposeLandscapeAssets(assets: LandscapeAssets): void {
-  const textures = new Set<Texture>([assets.ground.albedoAtlas, assets.ground.normalAtlas]);
+  const textures = new Set<Texture>([assets.ground.albedoAtlas, assets.ground.surfaceAtlas]);
   for (const maps of assets.trees.bark.values()) textures.add(maps.color).add(maps.normal).add(maps.roughness);
   for (const texture of Object.values(assets.trees.leaves)) textures.add(texture);
   const models = [assets.meadowPatch, assets.grassTuft, ...assets.rocks];
@@ -94,18 +86,17 @@ export function disposeLandscapeAssets(assets: LandscapeAssets): void {
 
 async function loadGroundTextures(): Promise<GroundTextureAssets> {
   const loader = new TextureLoader();
-  const paletteName = QUALITY_PROFILE.name === 'pico90' ? 'palette-pico' : 'palette-desktop';
-  const palettePath = `${TERRAIN_PATH}/${paletteName}`;
-  const [albedoAtlas, normalAtlas, metadata] = await Promise.all([
-    loadGroundTexture(loader, `${palettePath}/albedo.webp`, true),
-    loadGroundTexture(loader, `${palettePath}/normal.webp`, false),
-    loadTerrainPalette(`${TERRAIN_PATH}/palette.json`),
+  const atlas = LANDSCAPE_ASSET_CATALOG.terrain[QUALITY_PROFILE.name];
+  const [albedoAtlas, surfaceAtlas] = await Promise.all([
+    loadGroundTexture(loader, atlas.albedo, true),
+    loadGroundTexture(loader, atlas.surface, false),
   ]);
   return {
     albedoAtlas,
-    normalAtlas,
+    surfaceAtlas,
     tileMeters: TERRAIN_TILE_METERS,
-    atlasSize: metadata.atlasSize[QUALITY_PROFILE.name],
+    atlasSize: atlas.atlasSize,
+    parallaxMeters: atlas.parallaxMeters,
   };
 }
 
@@ -116,7 +107,7 @@ async function loadTreeTextures(): Promise<TreeTextureAssets> {
   );
   const leafEntries = await Promise.all(
     (['ash', 'aspen', 'oak', 'pine'] as const).map(async (species) => {
-      const texture = await loadTreeTexture(loader, `${TREE_PATH}/leaves/${species}.png`, true, true);
+      const texture = await loadTreeTexture(loader, LANDSCAPE_ASSET_CATALOG.trees.leaves[species], true, true);
       return [species, texture] as const;
     }),
   );
@@ -127,12 +118,11 @@ async function loadTreeTextures(): Promise<TreeTextureAssets> {
 }
 
 async function loadBarkMaps(loader: TextureLoader, request: TreeBarkTextureRequest): Promise<TreeBarkMaps> {
-  const directory = `${TREE_PATH}/bark/${request.type}_1K-JPG`;
-  const base = `${directory}/${request.type}_1K-JPG`;
+  const asset = LANDSCAPE_ASSET_CATALOG.trees.bark[request.type];
   const [color, normal, roughness] = await Promise.all([
-    loadTreeTexture(loader, `${base}_Color.jpg`, true),
-    loadTreeTexture(loader, `${base}_NormalGL.jpg`, false),
-    loadTreeTexture(loader, `${base}_Roughness.jpg`, false),
+    loadTreeTexture(loader, asset.albedo, true),
+    loadTreeTexture(loader, asset.normal, false),
+    loadTreeTexture(loader, asset.roughness, false),
   ]);
   return { color, normal, roughness };
 }
@@ -157,50 +147,6 @@ async function loadGroundTexture(loader: TextureLoader, url: string, colorTextur
   texture.anisotropy = 4;
   if (colorTexture) texture.colorSpace = SRGBColorSpace;
   return texture;
-}
-
-interface TerrainPaletteMetadata {
-  readonly tileMeters: TerrainLayerValues;
-  readonly atlasColumns: 3;
-  readonly atlasSize: Readonly<Record<'desktop' | 'pico90', number>>;
-  readonly surfaceEncoding: 'normal-rgb-roughness-a';
-}
-
-async function loadTerrainPalette(url: string): Promise<TerrainPaletteMetadata> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Could not load terrain palette metadata: ${response.status}`);
-  const value: unknown = await response.json();
-  if (!isTerrainPaletteMetadata(value)) throw new Error('Terrain palette metadata is invalid.');
-  return value;
-}
-
-function isTerrainPaletteMetadata(value: unknown): value is TerrainPaletteMetadata {
-  if (!isRecord(value)) return false;
-  const candidate = value as Partial<TerrainPaletteMetadata>;
-  return (
-    isTerrainLayerValues(candidate.tileMeters) && matchesConfiguredTileMeters(candidate.tileMeters) &&
-    candidate.atlasColumns === 3 &&
-    candidate.surfaceEncoding === 'normal-rgb-roughness-a' &&
-    isAtlasSize(candidate.atlasSize)
-  );
-}
-
-function matchesConfiguredTileMeters(value: TerrainLayerValues): boolean {
-  return value.every((entry, index) => entry === TERRAIN_TILE_METERS[index]);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
-}
-
-function isTerrainLayerValues(value: unknown): value is TerrainLayerValues {
-  if (!Array.isArray(value) || value.length !== 8) return false;
-  return value.every((entry) => typeof entry === 'number');
-}
-
-function isAtlasSize(value: unknown): value is TerrainPaletteMetadata['atlasSize'] {
-  if (!isRecord(value)) return false;
-  return value.desktop === 3_072 && value.pico90 === 1_536;
 }
 
 async function loadModel(loader: GLTFLoader, url: string): Promise<InstancedModelAsset> {

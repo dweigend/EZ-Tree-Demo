@@ -1,6 +1,6 @@
 /**
- * Creates deterministic tree placements from the shared physical zone populations.
- * It selects cached positions and species; TreeSystem owns LODs, capacity, and rendering.
+ * Redistributes zone-authored mean tree densities into deterministic clearings and local stands.
+ * It owns placement, species, variants, and caching; TreeSystem owns capacity and rendering.
  */
 
 import { MathUtils } from 'three';
@@ -20,8 +20,10 @@ import {
   createLandscapeZoneWeights,
   getMaximumPopulationDensityPerHectare,
   getPopulationDensityPerHectare,
+  getTreePattern,
   selectPopulationType,
   type LandscapeZoneWeights,
+  type TreePattern,
 } from '../ecology/landscape-zones';
 import { getChunkBounds } from '../world/chunk-coordinates';
 import type { TreePresetSize, TreeSize, TreeSpecies } from './tree-templates';
@@ -38,10 +40,52 @@ interface TreeCohortPattern {
   readonly salt: number;
 }
 
+interface TreeClusterPattern {
+  readonly patchMeters: number;
+  readonly clearingShare: number;
+  readonly denseShare: number;
+  readonly clearingMultiplier: number;
+  readonly backgroundMultiplier: number;
+  readonly denseMultiplier: number;
+  readonly salt: number;
+}
+
 const TREE_SIZES = ['small', 'medium', 'large'] as const satisfies readonly TreeSize[];
 const TREE_SPECIES = ['ash', 'aspen', 'oak', 'pine'] as const satisfies readonly TreeSpecies[];
+const TREE_CANDIDATE_DENSITY_PER_HECTARE = 72;
+const MAXIMUM_AUTHORED_TREE_DENSITY = getMaximumPopulationDensityPerHectare('trees');
 const SPECIES_PATCH_METERS = 82;
 const SPECIES_PATCH_COHESION = 0.78;
+const TREE_PATTERNS: Readonly<Record<TreePattern, TreeClusterPattern>> = {
+  scattered: createClusterPattern({
+    patchMeters: 190,
+    clearingShare: 0.4,
+    denseShare: 0.18,
+    denseMultiplier: 2.5,
+    salt: 0x1871,
+  }),
+  grove: createClusterPattern({
+    patchMeters: 120,
+    clearingShare: 0.36,
+    denseShare: 0.24,
+    denseMultiplier: 2.75,
+    salt: 0x2982,
+  }),
+  closed: createClusterPattern({
+    patchMeters: 170,
+    clearingShare: 0.28,
+    denseShare: 0.25,
+    denseMultiplier: 2.4,
+    salt: 0x3a93,
+  }),
+  coniferStand: createClusterPattern({
+    patchMeters: 145,
+    clearingShare: 0.32,
+    denseShare: 0.25,
+    denseMultiplier: 2.65,
+    salt: 0x4ba4,
+  }),
+};
 /**
  * Morphology only: zones still own species and density.
  * Aspen forms tight young clonal groups, pine stronger even-aged stands, ash mixed cohorts,
@@ -104,9 +148,10 @@ export class ForestDistribution {
     private readonly heightField: HeightField,
     seed: number,
     variants: readonly TreeVisualVariant[],
+    private readonly maximumDensityPerHectare = VEGETATION.maximumTreeDensityPerHectare,
   ) {
     if (variants.length === 0) throw new Error('Forest distribution requires tree variants.');
-    this.lattice = createPopulationLattice(getMaximumPopulationDensityPerHectare('trees'), seed);
+    this.lattice = createPopulationLattice(TREE_CANDIDATE_DENSITY_PER_HECTARE, seed);
     variants.forEach((variant, index) => {
       if (variant.size === 'shrub') throw new Error('Forest distribution cannot place shrub variants as trees.');
       this.variantIndices[variant.species][variant.size].push(index);
@@ -150,11 +195,33 @@ export class ForestDistribution {
   private createPlacement(candidate: PopulationCandidate): TreePlacement | null {
     this.sampleZones(candidate.x, candidate.z);
     const authoredDensity = getPopulationDensityPerHectare(this.zones, 'trees');
-    const density = Math.min(authoredDensity, VEGETATION.maximumTreeDensityPerHectare);
-    if (candidate.densityRankPerHectare >= density) return null;
+    const meanDensity = Math.min(authoredDensity, this.maximumDensityPerHectare);
+    const localDensity = meanDensity * this.getClusterMultiplier(candidate);
+    if (candidate.densityRankPerHectare >= localDensity) return null;
     const species = this.chooseSpecies(candidate);
     if (!species) return null;
-    return this.buildPlacement(candidate, species, density);
+    return this.buildPlacement(candidate, species, authoredDensity);
+  }
+
+  private getClusterMultiplier(candidate: PopulationCandidate): number {
+    const pattern = TREE_PATTERNS[getTreePattern(this.zones)];
+    const fieldX = (candidate.x + candidate.z * 0.37) / pattern.patchMeters;
+    const fieldZ = (candidate.z - candidate.x * 0.29) / pattern.patchMeters;
+    const patchX = Math.floor(fieldX);
+    const patchZ = Math.floor(fieldZ);
+    const blendX = sharpenedSmoothstep(fieldX - patchX);
+    const blendZ = sharpenedSmoothstep(fieldZ - patchZ);
+    const lower = MathUtils.lerp(
+      getPatchMultiplier(this.lattice.seed, { x: patchX, z: patchZ }, pattern),
+      getPatchMultiplier(this.lattice.seed, { x: patchX + 1, z: patchZ }, pattern),
+      blendX,
+    );
+    const upper = MathUtils.lerp(
+      getPatchMultiplier(this.lattice.seed, { x: patchX, z: patchZ + 1 }, pattern),
+      getPatchMultiplier(this.lattice.seed, { x: patchX + 1, z: patchZ + 1 }, pattern),
+      blendX,
+    );
+    return MathUtils.lerp(lower, upper, blendZ);
   }
 
   private chooseSpecies(candidate: PopulationCandidate): TreeSpecies | null {
@@ -201,7 +268,7 @@ export class ForestDistribution {
   private chooseTreeSize(candidate: PopulationCandidate, species: TreeSpecies, density: number): TreeSize {
     const pattern = TREE_COHORTS[species];
     const cohortSelection = this.getCohortSelection(candidate, pattern);
-    const sparseMaturity = 1 - density / VEGETATION.maximumTreeDensityPerHectare;
+    const sparseMaturity = 1 - density / MAXIMUM_AUTHORED_TREE_DENSITY;
     const slopeStunting = MathUtils.smoothstep(this.surface.slopeDegrees, 10, 30);
     const selection = MathUtils.clamp(
       cohortSelection + sparseMaturity * 0.17 - slopeStunting * 0.34,
@@ -233,4 +300,36 @@ function createVariantIndices(): Record<TreeSpecies, Record<TreeSize, number[]>>
     oak: { small: [], medium: [], large: [] },
     pine: { small: [], medium: [], large: [] },
   };
+}
+
+function createClusterPattern(
+  values: Pick<TreeClusterPattern, 'patchMeters' | 'clearingShare' | 'denseShare' | 'denseMultiplier' | 'salt'>,
+): TreeClusterPattern {
+  const clearingMultiplier = 0;
+  const backgroundShare = 1 - values.clearingShare - values.denseShare;
+  const backgroundMultiplier = (
+    1 - values.clearingShare * clearingMultiplier - values.denseShare * values.denseMultiplier
+  ) / backgroundShare;
+  return {
+    ...values,
+    clearingMultiplier,
+    backgroundMultiplier,
+  };
+}
+
+function getPatchMultiplier(
+  seed: number,
+  coordinate: { readonly x: number; readonly z: number },
+  pattern: TreeClusterPattern,
+): number {
+  const field = unitRandom(hashCoordinates(seed, coordinate.x, coordinate.z, pattern.salt));
+  if (field < pattern.clearingShare) return pattern.clearingMultiplier;
+  if (field < pattern.clearingShare + pattern.denseShare) return pattern.denseMultiplier;
+  return pattern.backgroundMultiplier;
+}
+
+function sharpenedSmoothstep(value: number): number {
+  const first = value * value * (3 - 2 * value);
+  const second = first * first * (3 - 2 * first);
+  return second * second * (3 - 2 * second);
 }

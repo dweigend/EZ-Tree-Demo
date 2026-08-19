@@ -10,6 +10,7 @@ import {
   createDynamicScalarAttribute,
   finaliseInstancedMesh,
 } from '../rendering/update-instanced-attributes';
+import { createWindDepthMaterial } from '../rendering/wind-depth-material';
 import { ChunkPrefetchQueue, getChunkIndex, getChunkViewWindow, type HorizontalDirection } from '../world/chunk-coordinates';
 import type { ForestDistribution, TreePlacement } from './forest-distribution';
 import type { HedgeDistribution, HedgePlacement } from './hedge-distribution';
@@ -24,6 +25,13 @@ interface TreeBatch {
   readonly phase: InstancedBufferAttribute;
   readonly strength: InstancedBufferAttribute;
   count: number;
+}
+
+interface TreeBatchOptions {
+  readonly variant: TreeVariant;
+  readonly lod: TreeLod;
+  readonly capacity: number;
+  readonly castShadow: boolean;
 }
 
 interface TreeRenderWindow {
@@ -94,9 +102,20 @@ export class TreeSystem {
     this.activePresetIds = this.variants.map((variant) => variant.presetId);
     this.activeHedgeHeights = this.hedgeVariants.map((variant) => variant.height);
     this.activeHedgePresetIds = this.hedgeVariants.map((variant) => variant.presetId);
-    this.treeBatches = this.variants.map((variant) => LODS.map((lod) => this.createBatch(variant, lod, VEGETATION.treeBatchCapacity)));
+    this.treeBatches = this.variants.map((variant) => {
+      return LODS.map((lod) => {
+        return this.createBatch({
+          variant,
+          lod,
+          capacity: VEGETATION.treeBatchCapacity,
+          castShadow: lod !== 'far',
+        });
+      });
+    });
     this.hedgeBatches = this.hedgeVariants.map((variant) => {
-      return HEDGE_LODS.map((lod) => this.createBatch(variant, lod, VEGETATION.hedgeBatchCapacity));
+      return HEDGE_LODS.map((lod) => {
+        return this.createBatch({ variant, lod, capacity: VEGETATION.hedgeBatchCapacity, castShadow: true });
+      });
     });
   }
 
@@ -249,7 +268,8 @@ export class TreeSystem {
     return distance < VEGETATION.farDistance ? 2 : null;
   }
 
-  private createBatch(variant: TreeVariant, lod: TreeLod, capacity: number): TreeBatch {
+  private createBatch(options: TreeBatchOptions): TreeBatch {
+    const { variant, lod, capacity, castShadow } = options;
     const geometry = variant.lods[lod];
     const branches = createDynamicInstancedMesh(geometry.branches, variant.branchMaterial, capacity);
     const leaves = createDynamicInstancedMesh(geometry.leaves, variant.leafMaterial, capacity);
@@ -257,8 +277,11 @@ export class TreeSystem {
     const strength = createDynamicScalarAttribute(capacity);
     leaves.geometry.setAttribute('aWindPhase', phase);
     leaves.geometry.setAttribute('aWindStrength', strength);
-    branches.castShadow = lod === 'near';
-    leaves.castShadow = VEGETATION.leafShadows && lod === 'near';
+    branches.castShadow = castShadow;
+    branches.receiveShadow = true;
+    leaves.castShadow = VEGETATION.leafShadows && castShadow;
+    leaves.receiveShadow = true;
+    leaves.customDepthMaterial = createWindDepthMaterial(variant.leafMaterial);
     this.group.add(branches, leaves);
     return { branches, leaves, phase, strength, count: 0 };
   }
@@ -333,6 +356,7 @@ export class TreeSystem {
     for (const batch of batches) {
       batch.branches.geometry.dispose();
       batch.leaves.geometry.dispose();
+      batch.leaves.customDepthMaterial?.dispose();
     }
   }
 

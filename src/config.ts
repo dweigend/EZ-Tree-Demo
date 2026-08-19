@@ -44,8 +44,8 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
     rockDistance: 525,
     pixelRatioCap: 1.5,
     shadowDistance: 170,
-    shadowMapSize: 1_536,
-    leafShadows: false,
+    shadowMapSize: 2_048,
+    leafShadows: true,
     xrFramebufferScale: 1,
     xrFoveation: 0,
   },
@@ -64,7 +64,7 @@ const PROFILES: Readonly<Record<QualityProfileName, QualityProfile>> = {
     pixelRatioCap: 1,
     shadowDistance: 90,
     shadowMapSize: 1_024,
-    leafShadows: false,
+    leafShadows: true,
     xrFramebufferScale: 0.75,
     xrFoveation: 1,
   },
@@ -76,7 +76,7 @@ export const BENCHMARK_MODE = parseBenchmarkMode(parameters.get('benchmark'));
 const variantStressMode = parameters.get('variantStress') === '1';
 const desktopDistance = readNumberParameter(parameters, 'distance', QUALITY_PROFILE.viewDistance, 720, 1_500);
 const viewDistance = QUALITY_PROFILE.name === 'desktop' ? desktopDistance : QUALITY_PROFILE.viewDistance;
-const fogDensity = readNumberParameter(parameters, 'fog', 1.7 / viewDistance, 0.0008, 0.0026);
+const fogDensity = readNumberParameter(parameters, 'fog', 1.25 / viewDistance, 0.0008, 0.0026);
 const relief = readNumberParameter(parameters, 'relief', 1, 0.7, 1.4);
 const startX = readNumberParameter(parameters, 'x', 0, -10_000, 10_000);
 const startZ = readNumberParameter(parameters, 'z', 120, -10_000, 10_000);

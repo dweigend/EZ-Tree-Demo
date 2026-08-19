@@ -3,7 +3,7 @@
  * It rejects WebGL1 explicitly and keeps device-pixel cost bounded for stable desktop performance.
  */
 
-import { NeutralToneMapping, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderer } from 'three';
 import { RENDERING } from '../config';
 
 export function createRenderer(): WebGLRenderer {
@@ -13,8 +13,8 @@ export function createRenderer(): WebGLRenderer {
     powerPreference: 'high-performance',
   });
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.toneMapping = NeutralToneMapping;
-  renderer.toneMappingExposure = 1.45;
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
   // Pixel ratio is a fill-rate budget; uncapped Retina resolution breaks the measured frame-time profile.

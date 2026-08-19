@@ -3,7 +3,7 @@
  * Source proportions and colours remain intact; roots stay pinned through height-based bend weights.
  */
 
-import { BufferAttribute, BufferGeometry, Color, MathUtils, MeshPhongMaterial, MeshStandardMaterial } from 'three';
+import { BufferAttribute, BufferGeometry, MathUtils, MeshStandardMaterial } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { WIND_INSTANCE_GLSL, WIND_WAVE_GLSL } from '../wind/shader-chunks';
 import { bindWindUniforms, type WindUniforms } from '../wind/wind-field';
@@ -43,20 +43,14 @@ export function prepareMeadowGeometry(source: BufferGeometry): BufferGeometry {
   return meadow;
 }
 
-export function createGrassMaterial(source: MeshStandardMaterial, wind: WindUniforms): MeshPhongMaterial {
-  const material = new MeshPhongMaterial({
-    map: source.map,
-    color: new Color('#d1d8ad'),
-    emissive: new Color('#283523'),
-    emissiveIntensity: 0.08,
-    alphaMap: source.alphaMap,
-    alphaTest: source.alphaTest,
-    transparent: source.transparent,
-    opacity: source.opacity,
-    shininess: 1,
-    side: source.side,
-    vertexColors: true,
-  });
+export function createGrassMaterial(source: MeshStandardMaterial, wind: WindUniforms): MeshStandardMaterial {
+  const material = source.clone();
+  material.color.set('#d1d8ad');
+  material.emissive.set('#283523');
+  material.emissiveIntensity = 0.08;
+  material.metalness = 0;
+  material.roughness = 1;
+  material.vertexColors = true;
   material.alphaToCoverage = source.alphaTest > 0;
   material.dithering = true;
   material.onBeforeCompile = (shader) => {
@@ -64,7 +58,7 @@ export function createGrassMaterial(source: MeshStandardMaterial, wind: WindUnif
     shader.vertexShader = `${WIND_INSTANCE_GLSL}\nattribute float aRotation;\nattribute float aBendWeight;\n${WIND_WAVE_GLSL}\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', grassBendShader);
   };
-  material.customProgramCacheKey = () => 'endless-wilds-grass-v6';
+  material.customProgramCacheKey = () => 'endless-wilds-grass-v7';
   return material;
 }
 

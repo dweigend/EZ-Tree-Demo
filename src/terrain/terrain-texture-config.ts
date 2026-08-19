@@ -3,7 +3,7 @@
  * Texture choice, scale, base colour, and zone coverage live in the JSON config; rendering code only consumes it.
  */
 
-import sourceConfig from '../../assets/source/terrain-materials/terrain-textures.config.json';
+import sourceConfig from '../../assets/source/landscape/terrain-materials/terrain-textures.config.json';
 import type { LandscapeZoneId } from '../ecology/landscape-zones';
 
 export const TERRAIN_SURFACE_IDS = [
@@ -31,7 +31,7 @@ export interface TerrainMaterialConfig {
   readonly name: string;
   readonly author: string;
   readonly tileMeters: number;
-  readonly maps: Readonly<Record<'basecolor' | 'normal' | 'roughness', string>>;
+  readonly maps: Readonly<Record<'basecolor' | 'normal' | 'height' | 'roughness', string>>;
 }
 
 export interface TerrainTextureConfig {
@@ -65,6 +65,15 @@ function validateMaterials(value: unknown): void {
     if (!isRecord(material) || material.slot !== TERRAIN_SURFACE_IDS[index]) {
       throw new Error(`Terrain texture slot ${index} is invalid.`);
     }
+    if (typeof material.asset !== 'string' || typeof material.tileMeters !== 'number' || material.tileMeters <= 0) {
+      throw new Error(`Terrain texture source ${index} is invalid.`);
+    }
+    if (!isRecord(material.maps)) throw new Error(`Terrain texture maps ${index} are missing.`);
+    for (const mapName of ['basecolor', 'normal', 'height', 'roughness']) {
+      if (typeof material.maps[mapName] !== 'string') {
+        throw new Error(`Terrain texture map ${index}.${mapName} is invalid.`);
+      }
+    }
   });
 }
 
@@ -86,7 +95,14 @@ function validateZones(value: unknown): void {
 function validateZoneCoverage(zone: string, value: unknown): void {
   if (!Array.isArray(value)) throw new Error(`Terrain zone ${zone} must be an array.`);
   const total = value.reduce((sum, entry) => {
-    if (!isRecord(entry) || entry.surface === 'trail' || typeof entry.coveragePercent !== 'number') {
+    if (
+      !isRecord(entry) ||
+      entry.surface === 'trail' ||
+      !TERRAIN_SURFACE_IDS.includes(entry.surface as TerrainSurfaceId) ||
+      typeof entry.coveragePercent !== 'number' ||
+      entry.coveragePercent < 0 ||
+      entry.coveragePercent > 100
+    ) {
       throw new Error(`Terrain zone ${zone} contains an invalid surface.`);
     }
     return sum + entry.coveragePercent;

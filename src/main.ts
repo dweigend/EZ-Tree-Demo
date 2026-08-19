@@ -8,6 +8,7 @@ import { loadLandscapeAssets } from './assets/landscape-assets';
 import { WorldRuntime } from './world/world-runtime';
 
 const app = document.querySelector<HTMLDivElement>('#app');
+const diagnosticsVisible = new URLSearchParams(window.location.search).get('debug') === '1';
 
 if (!app) {
   throw new Error('Missing #app root element.');
@@ -22,7 +23,7 @@ app.innerHTML = `
     <h1>Klicken, um zu fliegen</h1>
     <p>WASD · Maus · Space / Shift · Mausrad</p>
   </section>
-  <output class="diagnostics" aria-label="Renderdiagnostik"></output>
+  <output class="diagnostics" aria-label="Renderdiagnostik"${diagnosticsVisible ? '' : ' hidden'}></output>
 `;
 
 const world = app.querySelector<HTMLElement>('#world');

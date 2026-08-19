@@ -81,9 +81,16 @@ function variantSeed(seed: number, index: number): number {
 
 function applyTextures(tree: Tree, preset: ReturnType<typeof createVariedTreePreset>, textures: TreeTextureAssets): void {
   const bark = getBarkMaps(textures, preset);
-  tree.options.bark.maps.color = bark.color;
-  tree.options.bark.maps.normal = bark.normal;
-  tree.options.bark.maps.roughness = bark.roughness;
+  // Official presets serialize texture identifiers but not the runtime texture slots.
+  const maps = tree.options.bark.maps ?? (tree.options.bark.maps = {
+    color: null,
+    ao: null,
+    normal: null,
+    roughness: null,
+  });
+  maps.color = bark.color;
+  maps.normal = bark.normal;
+  maps.roughness = bark.roughness;
   tree.options.leaves.map = textures.leaves[preset.leaves.type];
 }
 
